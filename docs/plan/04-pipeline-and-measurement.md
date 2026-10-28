@@ -140,8 +140,11 @@ Requests:
 4. **Pendulum string (image, optional):** `segment_image(mid_keyframe, "string")`. Its
    topmost mask point is a pivot estimate used to cross-check the circle-fit pivot.
 
-Store the raw events (`sam/<slug>.raw.jsonl`) and the parsed summary. Return the
-`SamRequestSummary[]` + parsed results in memory for measurement.
+Store one compact record per request (`sam/<role>_<slug>.sam.json`: the model's output
+text in the SAM grammar + status + usage; ~3× smaller than raw events) and `sam/summary.json`.
+`clients.sam.load_record()` re-parses a record with the official parser, which powers resume,
+replay and the golden tests (`backend/tests/fixtures/sam/*.sam.json.gz`, recorded live in M1).
+The uploaded clip is deleted at the end of the stage (M1 V10).
 
 ### 4.1 Motion-blob fallback (no LLM)
 Compute the absolute difference between frames k and k+3 over the first 30 frames of the

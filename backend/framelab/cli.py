@@ -138,16 +138,109 @@ def doctor(
     typer.secho("All required checks passed.", fg=typer.colors.GREEN)
 
 
+EXPERIMENT_AXIS = {"free_fall": "y", "pendulum": "x", "melting": "xy"}
+UNTIL_CHOICES = ("ingesting", "planning", "segmenting", "measuring")
+
+
+def manual_spec(
+    experiment: str,
+    concept: str,
+    alt_concepts: list[str],
+    ref_concept: str | None,
+    ref_length_m: float | None,
+    ref_frame_s: float | None,
+    window: str | None,
+    lang: str,
+):
+    """Temporary ExperimentSpec from CLI flags until the Planner exists (M5)."""
+    from framelab.schemas import ExperimentSpec, ReferenceObject
+
+    if window:
+        t0, t1 = (float(v) for v in window.split(","))
+    else:
+        t0, t1 = 0.0, 1e9  # clamped to the video length after ingest
+    reference = (
+        ReferenceObject(
+            concept=ref_concept,
+            length_m=ref_length_m,
+            length_source="spoken" if ref_length_m else "unknown",
+            frame_hint_s=ref_frame_s,
+        )
+        if ref_concept
+        else None
+    )
+    return ExperimentSpec(
+        experiment=experiment,  # type: ignore[arg-type]
+        target_concept=concept,
+        target_alt_concepts=alt_concepts,
+        reference=reference,
+        analysis_window_s=(t0, t1),
+        motion_axis=EXPERIMENT_AXIS.get(experiment, "xy"),  # type: ignore[arg-type]
+        language=lang,  # type: ignore[arg-type]
+        setup_description="Manual spec from CLI flags (Planner arrives in M5).",
+        confidence=1.0,
+    )
+
+
 @app.command()
 def run(
     video: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Input video")],
+    concept: Annotated[
+        str | None, typer.Option(help="SAM noun phrase for the moving object (required until M5)")
+    ] = None,
+    alt_concept: Annotated[
+        list[str] | None, typer.Option("--alt-concept", help="Fallback noun phrase (repeat)")
+    ] = None,
+    ref_concept: Annotated[
+        str | None, typer.Option(help="Static scale reference, e.g. ruler")
+    ] = None,
+    ref_length_m: Annotated[
+        float | None, typer.Option(help="Real length of the reference (m)")
+    ] = None,
+    ref_frame_s: Annotated[
+        float | None, typer.Option(help="Time (s) where the reference is fully visible")
+    ] = None,
+    window: Annotated[str | None, typer.Option(help="Analysis window 't0,t1' in seconds")] = None,
+    experiment: Annotated[str, typer.Option(help="free_fall | pendulum")] = "free_fall",
     lang: Annotated[str, typer.Option(help="Report language: id | en")] = "id",
     capture_fps: Annotated[int | None, typer.Option(help="Real capture fps for slow-mo")] = None,
-    resume: Annotated[str | None, typer.Option(help="Resume an existing run id")] = None,
-    no_agents: Annotated[bool, typer.Option(help="Bypass agents (M3 dev mode)")] = False,
+    until: Annotated[
+        str, typer.Option(help=f"Stop after stage: {', '.join(UNTIL_CHOICES)}")
+    ] = "measuring",
+    runs_dir: Annotated[Path | None, typer.Option(help="Runs folder (default: settings)")] = None,
 ) -> None:
-    """Run the full pipeline on a video (implemented from M2 onwards)."""
-    _not_yet("M2–M8")
+    """Run the pipeline on a video. M2: ingest → SAM → observations (stops at --until)."""
+    import asyncio
+
+    from framelab.pipeline.run import execute_run
+    from framelab.schemas import Stage
+    from framelab.store import RunStore
+
+    if until not in UNTIL_CHOICES:
+        raise typer.BadParameter(f"--until must be one of {UNTIL_CHOICES}")
+    if not concept:
+        raise typer.BadParameter("--concept is required until the Planner lands (M5)")
+    settings = Settings(runs_dir=runs_dir) if runs_dir else Settings()
+    store = RunStore(settings.runs_dir)
+    state = store.create_run(video.name, lang=lang, capture_fps=capture_fps)  # type: ignore[arg-type]
+    shutil.copyfile(video, store.input_video_path(state.run_id))
+    spec = manual_spec(
+        experiment, concept, alt_concept or [], ref_concept, ref_length_m, ref_frame_s, window, lang
+    )
+    typer.echo(f"Run {state.run_id} → {store.run_dir(state.run_id)}")
+    final = asyncio.run(execute_run(state.run_id, settings, spec_override=spec, until=Stage(until)))
+    run_dir = store.run_dir(state.run_id)
+    if final.stage == Stage.FAILED:
+        typer.secho(f"FAILED: {final.error}", fg=typer.colors.RED)
+        typer.echo(f"Details: {run_dir / 'error.json'}")
+        raise typer.Exit(code=1)
+    typer.secho(
+        f"Stopped after {final.stage.value}. Cost ≈ ${final.cost_usd:.4f}", fg=typer.colors.GREEN
+    )
+    for name, rel in final.artifacts.items():
+        typer.echo(f"  {name:<16} {run_dir / rel}")
+    for warning in final.warnings:
+        typer.secho(f"  ! {warning}", fg=typer.colors.YELLOW)
 
 
 @app.command()

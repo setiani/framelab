@@ -42,7 +42,8 @@ Windows PowerShell: `.\scripts\dev.ps1 install`, `.\scripts\dev.ps1 test`, `.\sc
 ## Status
 
 - [x] M0: repository skeleton, schemas, run store, event log, CLI `doctor`, health endpoint
-- [ ] M1: Meta API verification spikes
+- [x] M1: Meta API verification spikes (findings in `docs/plan/11-risks-and-open-questions.md`)
+- [x] M2: ingest, SAM client, segmentation, observations (`framelab run --until measuring`)
 - [ ] M2–M12: see [`docs/plan/09-milestones-and-tasks.md`](docs/plan/09-milestones-and-tasks.md)
 
 ## License

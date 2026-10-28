@@ -93,8 +93,12 @@ runs/<run_id>/                       # run_id = "r_" + YYYYMMDD_HHMMSS + "_" + 6
 ├── transcript.json                  # Transcript (03)
 ├── spec.json                        # ExperimentSpec (03)
 ├── sam/
-│   ├── <concept_slug>.raw.jsonl     # raw streamed events (for golden replay)
-│   └── <concept_slug>.records.json  # parsed records summary (boxes, mask bounds, revisions)
+│   ├── target_<concept_slug>.sam.json     # compact record: model output text (SAM grammar), status, usage
+│   ├── reference_<concept_slug>.sam.json  # static reference, IMAGE mode (M1 V12)
+│   ├── string.sam.json                    # pendulum only, optional
+│   └── summary.json                       # attempts (SamRequestSummary[]), concept used, warnings
+├── measurement.json                 # target object id/stats, first mask frame, reference axes
+├── debug/centroids.png              # all centroids + reference box on a key frame (sanity check)
 ├── observations.parquet|csv         # per-frame per-object observations (03 §3)
 ├── tracks/<track_id>.csv            # cleaned time series used for fitting
 ├── calibration.json                 # Calibration results

@@ -105,17 +105,23 @@ any affected sections of 02/04.)
 
 ## M2: Ingest + SAM client + observations
 **Tasks**
-- [ ] `pipeline/ingest.py` (04 §2): probe, effective fps, normalize, audio, analysis clip,
+- [x] `pipeline/ingest.py` (04 §2): probe, effective fps, normalize, audio, analysis clip,
       key frames. Return `IngestResult`.
-- [ ] `clients/meta.py` (02 §1, §11): sync/async clients, retry/backoff, cost accounting,
+- [x] `clients/meta.py` (02 §1, §11): sync/async clients, retry/backoff, cost accounting,
       `model_call/model_result` events, recording mode (`FRAMELAB_RECORD_DIR`).
-- [ ] `clients/sam.py` (02 §5): upload, segment_video, segment_image, box-prompt fallback,
+- [x] `clients/sam.py` (02 §5): upload, segment_video, segment_image, box-prompt fallback,
       raw event tee to JSONL, validation.
-- [ ] `pipeline/segment.py` (04 §4) incl. motion-blob fallback.
-- [ ] `pipeline/measure.py` §5 (observations only; cleaning comes in M3).
-- [ ] CLI `framelab run --until measuring` with a temporary hard-coded spec (`--concept`,
+- [x] `pipeline/segment.py` (04 §4) incl. motion-blob fallback.
+- [x] `pipeline/measure.py` §5 (observations only; cleaning comes in M3).
+- [x] CLI `framelab run --until measuring` with a temporary hard-coded spec (`--concept`,
       `--ref-concept`, `--window`), until the Planner exists.
-- [ ] Tests from 08 §2 for ingest and measure (observations part).
+- [x] Tests from 08 §2 for ingest and measure (observations part).
+- [x] Done 2026-10-28 (code + 27 new offline tests; 56 total green on Python 3.11 and 3.13).
+      Golden replay: real SAM responses from M1 stored as `backend/tests/fixtures/sam/*.sam.json.gz`
+      drive the whole M2 pipeline offline (`tests/fakes.py::FakeSam`).
+- [x] Human: one live run on the dev machine (acceptance below), then commit. Done 2026-10-28
+      (run r_20261028_155731_86e4b0, synthetic 60 fps clip, $0.06): 268 ball observations
+      (frames 32–299, mean abs cy error 0.41 px vs ground truth), ruler found on key frame 0.
 
 **Acceptance:** on a real free-fall video, `observations.csv` has one row per frame for
 the ball with sub-pixel centroids, and the ruler observation is present. Overlay debug
