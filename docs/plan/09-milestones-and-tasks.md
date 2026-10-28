@@ -29,10 +29,15 @@ Every milestone ends with: tests green → commit → push (public repo) → tic
 **Tasks**
 - [ ] Claim the $150 Meta Model API credits (form in the hackathon guide), add a payment
       method, set a **Spend Limit**, and create an API key. (Human task.)
-- [ ] Optional: request Baseten credits (S-3) and Modal credits (hosting). (Human task.)
+      Status 2026-10-28: API key is in `.env` (not tracked by git); confirm the credits show
+      on the Billing page and the Spend Limit is set, then tick this box.
+- [x] Optional: request Baseten credits (S-3) and Modal credits (hosting). (Human task.)
+      Requested 2026-10-28; awaiting approval emails (credits not guaranteed). If both are
+      approved: Baseten = open-weight path (Muse Spark Open), Modal = hosting.
 - [x] Create the repo folder `framelab` (MIT), copy `plan/` → `docs/plan/` and
       `plan/AGENTS.md` → `AGENTS.md`. (Skeleton done 2026-10-28.)
-- [ ] Human: `git init`, create the **public** GitHub repo, first commit and push.
+- [x] Human: `git init`, create the **public** GitHub repo, first commit and push.
+      Done 2026-10-28: https://github.com/setiani/framelab (commit `773e3d6`).
 - [x] `pyproject.toml` (package in `backend/framelab`, entry point `framelab = framelab.cli:app`),
       deps: fastapi, uvicorn[standard], pydantic, pydantic-settings, openai, meta_sam_parser,
       httpx, numpy, scipy, opencv-python-headless, pillow, matplotlib, jinja2, playwright,
