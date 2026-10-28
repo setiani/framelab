@@ -1,0 +1,10 @@
+{
+  "freefall_01.mp4": {"experiment": "free_fall", "g_ref": 9.781, "drop_height_m": 1.00,
+                      "ball_diameter_m": 0.067, "ruler_length_m": 1.00, "fps_recorded": 240,
+                      "expected_verdict": "PASS", "notes": "tennis ball, white wall"},
+  "pendulum_050.mp4": {"experiment": "pendulum", "string_length_m": 0.50,
+                       "period_stopwatch_s": 1.42, "period_stopwatch_n": 10,
+                       "amplitude_deg_approx": 10, "expected_verdict": "PASS"},
+  "trap_ruler_offplane.mp4": {"experiment": "free_fall", "expected_verdict": "NEEDS_RERECORD",
+                              "expected_failed_gates": ["G2"]}
+}

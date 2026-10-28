@@ -1,0 +1,26 @@
+/* FrameLab visual direction: precise lab instrument (docs/plan/07 §4.1). */
+:root {
+  --bg: #f7f7f4;
+  --surface: #ffffff;
+  --ink: #111418;
+  --muted: #5b6470;
+  --line: #e3e5e8;
+  --accent: #00b8d9;
+  --pass: #138a4f;
+  --warn: #b7791f;
+  --fail: #c2410c;
+  --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --sans: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+.shell { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+header.top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; }
+header.top h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+header.top .tag { color: var(--muted); font-size: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.mono { font-family: var(--mono); }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.ok { background: var(--pass); }
+.bad { background: var(--fail); }
+footer.models { margin-top: 32px; color: var(--muted); font-size: 12px; }

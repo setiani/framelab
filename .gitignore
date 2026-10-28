@@ -1,0 +1,30 @@
+# secrets
+.env
+*.env.local
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# runtime data
+runs/
+debug/
+scripts/spikes/out/
+
+# web
+web/node_modules/
+web/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

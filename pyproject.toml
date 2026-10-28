@@ -1,0 +1,68 @@
+[project]
+name = "framelab"
+version = "0.1.0"
+description = "Every phone is a physics lab: turn phone videos of experiments into verified measurements with Meta SAM 3.1, Muse Spark and Muse Wonder."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "openai>=1.40",
+    "meta_sam_parser>=0.1.0",
+    "httpx>=0.27",
+    "numpy>=1.26",
+    "scipy>=1.13",
+    "opencv-python-headless>=4.9",
+    "pillow>=10.3",
+    "matplotlib>=3.8",
+    "jinja2>=3.1",
+    "playwright>=1.44",
+    "typer>=0.12",
+]
+
+[project.scripts]
+framelab = "framelab.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/framelab"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"backend/framelab/agent/prompts" = "framelab/agent/prompts"
+"backend/framelab/templates" = "framelab/templates"
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Keep pytest's tmp_path inside the repo instead of %TEMP%\pytest-of-<user>, which can be
+# inaccessible on locked-down Windows machines (WinError 5). The folder is git-ignored and
+# recreated on every run.
+addopts = ["--basetemp=.pytest_tmp"]
+markers = [
+    "live: calls paid Meta APIs (skipped unless FRAMELAB_LIVE_TESTS=1)",
+    "slow: slow tests (bootstrap coverage, PDF rendering)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["B008"]  # FastAPI/Typer default-argument calls
