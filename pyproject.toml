@@ -66,3 +66,7 @@ src = ["backend"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 ignore = ["B008"]  # FastAPI/Typer default-argument calls
+
+[tool.ruff.lint.per-file-ignores]
+# M1 spike scripts are evidence-gathering tools with long diagnostic f-strings.
+"scripts/spikes/*.py" = ["E501"]

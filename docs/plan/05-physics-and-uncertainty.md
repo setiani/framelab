@@ -57,8 +57,11 @@ Input: valid track points `t`, `y_m` (downward positive).
    neither exists, the object left the frame: `i_imp = last valid index` and add a warning
    `object_left_frame`.
 3. **Release** index `i_rel` = last index before `argmax(v)` where `v < 0.05·v_max`
-   (object still in the hand). If none, the release happened before the window:
-   `i_rel = first valid index`.
+   (object still in the hand). If none, the release happened before the first mask:
+   `i_rel = first valid index`. **This is the normal case with SAM**, which reports a static
+   object only from the frame after it starts moving (11 §1 V12): the first mask frame ≈
+   release + 1 frame. Record `release_frame_estimate = first_mask_frame − 1` in the `win_`
+   evidence. The quadratic fit keeps `v0` free, so the exact release instant is not needed.
 4. Fit window = `[i_rel + 1, i_imp − 1]` (exclude the contact frames).
 5. Require ≥ `min_valid_points` (8) valid points in the window. Else gate G1 fails with
    remedy `rerecord`, and the message suggests slow motion (`too_few_points`).

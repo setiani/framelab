@@ -94,9 +94,11 @@ Run via `subprocess.run([...], check=True, capture_output=True)` in `asyncio.to_
 On Windows, the `scale` expression is passed as one list element (no shell quoting needed).
 
 ### 2.4 Analysis clip (for SAM)
-SAM is billed per frame and may have frame limits. Send only the analysis window:
-`[t0 − 0.3 s, t1 + 0.3 s]` in **file** time, clamped to the video and to
-`max_analysis_s`. Make it frame-accurate:
+SAM is billed per frame (all frames of the clip, `video_frames_processed`). Send only the
+analysis window: `[t0 − 1.0 s, t1 + 0.5 s]` in **file** time, clamped to the video and to
+`max_analysis_s`. The Planner's window is coarse (Spark samples frames sparsely, 11 §1 V5),
+hence the generous start padding. SAM reports a static object only once it moves (V12), so
+padding costs a few frames but never hides the release. Make it frame-accurate:
 
 ```bash
 ffmpeg -y -i ingest/video.mp4 \
@@ -132,7 +134,8 @@ Requests:
 2. If the result is empty or the best track coverage < 0.5, try each of
    `spec.target_alt_concepts` (max 2 more requests). Then try the box-prompt fallback
    (02 §5.3) if `spec.target_hint_box` exists or a motion blob is found (§4.1).
-3. **Reference (image):** `segment_image(ref_keyframe, spec.reference.concept)` when a
+3. **Reference (image, never video):** static objects get no masks in video mode until they
+   move (11 §1 V12). `segment_image(ref_keyframe, spec.reference.concept)` when a
    reference exists. Pick the mask with the largest `major_axis_px`.
 4. **Pendulum string (image, optional):** `segment_image(mid_keyframe, "string")`. Its
    topmost mask point is a pivot estimate used to cross-check the circle-fit pivot.
@@ -209,7 +212,12 @@ All methods return `ScaleEstimate(m_per_px, sigma_m_per_px, details)`.
 - Use frames inside the window with a valid mask. For a sphere, motion blur stretches the
   mask along the motion direction, so use the axis **perpendicular** to the motion:
   `width_px = minor_axis_px` when `minor/major < 0.85`, else `eq_diameter_px`.
-- `d_px = median(width_px)`, `σ_d_px = 1.4826·MAD / √n + 1.0` (edge term).
+- **Mask dilation correction (M1, V11):** SAM masks are ~1 px larger per side than the true
+  edge (46 px ball → 47–48 px mask). Use `d_corr = d_px − δ` with `δ = 1.5 px` (setting
+  `mask_dilation_px`; recalibrate on the benchmark). Apply the same δ to areas
+  (`eq_diameter_px − δ`). The ruler's long axis needs no correction (PCA length matched the
+  truth to 0.01 px). Its short side does (32 vs 30 px).
+- `d_px = median(width_px) − δ`, `σ_d_px = 1.4826·MAD / √n + 1.0` (edge term).
 - `m_per_px = object_diameter_m / d_px`.
 
 ### 6.3 Pendulum pivot and length

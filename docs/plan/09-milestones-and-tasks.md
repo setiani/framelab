@@ -27,7 +27,7 @@ Every milestone ends with: tests green → commit → push (public repo) → tic
 
 ## M0: Bootstrap
 **Tasks**
-- [ ] Claim the $150 Meta Model API credits (form in the hackathon guide), add a payment
+- [X] Claim the $150 Meta Model API credits (form in the hackathon guide), add a payment
       method, set a **Spend Limit**, and create an API key. (Human task.)
       Status 2026-10-28: API key is in `.env` (not tracked by git); confirm the credits show
       on the Billing page and the Spend Limit is set, then tick this box.
@@ -66,18 +66,28 @@ Add unit tests for RunStore and EventBus. Do not implement pipeline logic yet.
 ## M1: API verification spikes
 **Tasks** (each one is a small script in `scripts/spikes/` that prints findings. Write the
 results into `docs/plan/11-risks-and-open-questions.md` §1)
-- [ ] `spike_sam_video.py`: upload a 5 s 60 fps and a 3 s 240 fps clip (960 px). Segment
+- [x] Spike scripts written (2026-10-28) + `make_test_media.py` (synthetic free-fall clips with
+      burnt-in frame counter and per-frame ground truth) + `run_all.py`. Offline-tested; the
+      Meta API is not reachable from the build sandbox, so the spikes run on the dev machine:
+      `uv run python scripts/spikes/run_all.py` (optionally `--speech <voice note>`), est. < $1.
+      Results land in `scripts/spikes/out/` (git-ignored): `SUMMARY.md` + one JSON per spike.
+- [x] Run the spikes on the dev machine and record the answers below. Done 2026-10-28
+      (run_all ≈ $0.61 + spike_followup ≈ $0.17). Answers: 11 §1.
+- [x] `spike_sam_video.py`: upload a 5 s 60 fps and a 3 s 240 fps clip (960 px). Segment
       "ball". Record: max frame_index+1 vs ffprobe frame count (1:1?), coordinate space,
       latency, cost, whether a video with an audio track is accepted, behaviour at 20 s.
-- [ ] `spike_sam_image.py`: segment "ruler" on a key frame. Check that the mask raster
+- [x] `spike_sam_image.py`: segment "ruler" on a key frame. Check that the mask raster
       size equals the bounds size.
-- [ ] `spike_spark_video.py`: Responses API with `input_file` vs `input_video` + `file_id`;
+- [x] `spike_spark_video.py`: Responses API with `input_file` vs `input_video` + `file_id`;
       `usage` tokens for a 15 s clip; can it read the embedded audio?
-- [ ] `spike_structured_output.py`: Responses `text.format` json_schema with Spark; Chat
+- [x] `spike_structured_output.py`: Responses `text.format` json_schema with Spark; Chat
       Completions `response_format` with Wonder.
-- [ ] `spike_voice.py`: Indonesian/English mixed sentence; `ENDPOINTING` turns; check the
+- [x] `spike_voice.py`: Indonesian/English mixed sentence; `ENDPOINTING` turns; check the
       `languageBias` value for Indonesian.
-- [ ] Decide fallbacks where needed and update 02/04 accordingly.
+- [x] Decide fallbacks where needed and update 02/04 accordingly. Done: 02 §4–§8, 04 §2.4/§4/§6.2,
+      05 §2.1, 06 table, config defaults (`use_wonder=False`, `mask_dilation_px=1.5`).
+- [x] Extra spike `spike_followup.py` for the two surprises (V12 SAM motion onset,
+      V7b Wonder strict mode).
 
 **Acceptance:** every VERIFY item in 11 §1 has an answer with date and evidence (output
 excerpt). Total spike cost < $2.
@@ -205,8 +215,10 @@ the listed tests with a scripted FakeMetaClient, including the budget-exhaustion
 
 ## M7: Auditor, Designer, Translator, final verdict
 **Tasks**
-- [ ] `auditor.py` + prompt (06 §5, §9.3) with pre/post deterministic checks; Wonder with
-      fallback to Spark (`FRAMELAB_USE_WONDER`).
+- [ ] `auditor.py` + prompt (06 §5, §9.3) with pre/post deterministic checks; default model
+      Muse Spark (separate context), Wonder behind `FRAMELAB_USE_WONDER` (02 §7).
+- [ ] Re-evaluate Muse Wonder as Auditor once on the PASS and trap fixtures with the strict
+      `Verdict` schema (~$0.10). Enable only if both verdicts are correct; record in 11 §3.
 - [ ] Revise loop in the orchestrator (04 §1) + `finalize_verdict` (06 §8).
 - [ ] `designer.py` + `predict` tool + prompt (06 §6, §9.4).
 - [ ] Translator for the second report language (04 §9, 06 §9.5) with placeholder-set check.

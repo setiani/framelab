@@ -265,6 +265,7 @@ framelab/
 | `FRAMELAB_MAX_ANALYSIS_S` | `20` | Max analysis window sent to SAM |
 | `FRAMELAB_CONCURRENCY` | `2` | Parallel runs |
 | `FRAMELAB_LIVE_TESTS` | `0` | Enable live tests |
-| `FRAMELAB_USE_WONDER` | `1` | `0` = Auditor falls back to Muse Spark 1.3 (cost/availability) |
+| `FRAMELAB_USE_WONDER` | `0` | `1` = Auditor uses Muse Wonder (only after it passes the M7 re-evaluation, 02 §7) |
+| `FRAMELAB_MASK_DILATION_PX` | `1.5` | SAM mask edge dilation subtracted from object diameters (04 §6.2) |
 | `FRAMELAB_DESIGNER_BACKEND` | `meta` | `meta` or `baseten` (S-3) |
 | `FRAMELAB_LOG_LEVEL` | `INFO` | |

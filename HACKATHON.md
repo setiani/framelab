@@ -10,6 +10,8 @@ building period.** No pre-existing code was used.
 |---|---|
 | 2026-10-28 | Idea and technical proposal; implementation plan (`docs/plan/`); repository skeleton (M0): project config, Pydantic data contracts, run store, append-only event log, CLI `doctor`, `/api/health`, frontend skeleton, CI. Skeleton and plan drafted with AI assistance (Claude) and reviewed by the author. |
 
+| 2026-10-28 (evening) | M1 API verification: spike scripts + synthetic test-media generator with ground truth; ran against the live Meta API (≈ $0.78). Findings: SAM frame indices 1:1 and sub-pixel accurate; SAM video reports objects only after they move; Spark does not hear video audio; Wonder unreliable on structured output (Spark auditor by default). Plan updated (02/04/05/06/11). |
+
 <!-- Add one row per day: milestone(s) finished, notable decisions, what changed. -->
 
 ## AI assistance

@@ -19,7 +19,7 @@
 |---|---|---|---|---|
 | Planner | `muse-spark-1.3` | Responses (video file) | medium | `ExperimentSpec` |
 | Analyst | `muse-spark-1.3` | Chat Completions + tools | high | ledger entries + `ReportDraft` |
-| Auditor | `muse-wonder-1.0` (fallback Spark) | Chat Completions + structured output | high | `Verdict` |
+| Auditor | `muse-spark-1.3` by default; `muse-wonder-1.0` only if it passes the M7 re-evaluation (02 §7) | Chat Completions + strict structured output | high | `Verdict` |
 | Designer | `muse-spark-1.3` (S-3: Spark Open via Baseten) | Chat Completions + 1 tool | low | `DesignerProposal` |
 | Translator | `muse-spark-1.3` | Chat Completions + structured output | minimal | `ReportDraft` (other language) |
 

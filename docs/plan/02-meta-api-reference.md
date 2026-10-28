@@ -76,13 +76,12 @@ async def upload_file(path: Path, mime: str = "video/mp4") -> str:
     return uploaded.id
 ```
 
-- Upload `ingest/video_with_audio.mp4` once. Use the same `file_id` for the Spark Planner
-  (it reads frames and embedded audio) and for SAM video segmentation.
-  **VERIFY:** SAM accepts a video with an audio track. If not, upload `ingest/video.mp4`
-  (no audio) separately for SAM.
-- Video must be `video/mp4`.
-- **VERIFY:** file size/duration limits and retention. Delete files after the run if a
-  delete endpoint exists (`api.files.delete(file_id)`). Wrap it in try/except.
+- Upload `ingest/video_with_audio.mp4` for the Spark Planner and the trimmed silent
+  `ingest/analysis.mp4` for SAM (fewer billed frames). SAM also accepts MP4 with audio (V4 ✓).
+- Video must be `video/mp4`. No size/duration limit was hit up to 1,200 frames (V3 ✓).
+- Retention (V10 ✓): `files.retrieve` shows `expires_at: null` (files never expire on their
+  own); `files.delete(file_id)` works → **delete every uploaded file at the end of the run**
+  (try/except, log failures).
 
 ## 5. SAM 3.1: segmentation and tracking
 
@@ -223,11 +222,22 @@ SegmentationTextRecord: kind="text", order, text
   usually 1. Keep the general formula anyway.
 - Video results can contain several revisions of a mask for the same (object, frame).
   **Keep the highest `revision`** per `(object_id, frame_index)`.
-- **VERIFY:** (a) `frame_index` is 0-based and indexes the decoded frames of the uploaded
-  file one-to-one (no sampling). Check by counting frames with ffprobe and comparing
-  max(frame_index)+1. (b) Coordinates are in the pixel space of the uploaded video
-  (after our resize). (c) Maximum fps/duration/frames per request (test 240 fps, 20 s).
-  The cookbook's ping-pong sample returned one object across all 134 frames.
+- **Verified in M1 (11 §1):**
+  - `frame_index` is 0-based and 1:1 with the decoded frames of the uploaded file (V1).
+    Billing/usage: `response.completed.response.usage.video_frames_processed` = all frames.
+  - Coordinates are in the uploaded video's pixel space (V2, error ≈ 0.3–0.5 px). The raw
+    grammar is `<NNf>OBJ<|box;x1;y1;x2;y2;w;h|><|mask;x;y;data=W,H,…|>`; box x2/y2 are
+    inclusive, parser `bounds` are half-open. Always use the parser.
+  - Mask raster size == bounds size (V11). Masks are ~1 px larger per side than the true edge.
+  - 240 fps × 3 s and 60 fps × 20 s work; throughput ≈ 20 frames/s (V3).
+  - **Motion onset (V12): in video mode SAM reports an object only from the frame AFTER it
+    first moves.** Objects that are static from the start of the clip get NO masks until they
+    move (a ball held still for 2 s: first mask at motion start + 1 frame; a clip that starts
+    with motion: first mask at frame 1). Once tracked, the object stays tracked while static.
+    ⇒ Static things (ruler, pivot, string) are segmented in **image** mode on key frames.
+    ⇒ For free fall the first mask frame ≈ release + 1 frame (05 §2.1).
+    ⇒ Stretch S-1 (melting ice, never moves) needs image-mode segmentation per key frame or a
+      box-prompt video request (§5.3); verify before building S-1.
 
 ### 5.3 Box/point prompt fallback
 
@@ -328,20 +338,27 @@ resp = await api.responses.create(
         "format": {
             "type": "json_schema",
             "name": "experiment_spec",
-            "schema": ExperimentSpec.model_json_schema(),
-            "strict": False,
+            "schema": strict_schema(ExperimentSpec),
+            "strict": True,
         }
-    },  # VERIFY
+    },
 )
 spec = ExperimentSpec.model_validate_json(resp.output_text)
 ```
 
-- Muse Spark reads the video's embedded audio together with frames. The Voice transcript
-  is still passed explicitly because it is more reliable for numbers and has turn timings.
-- **VERIFY** in M1: (a) `text.format` json_schema is honoured on the Responses API. If not,
-  drop `text=` and instruct "Return only JSON matching this schema: …" and validate.
-  (b) Whether `input_file` or `input_video` works with `file_id` for Spark. (c) Token cost
-  of a 15 s 960 px video (read `resp.usage`).
+- **Verified in M1 (V5, V6, V9):** `input_file`, `input_video` (Responses, `file_id`) and
+  Chat `video_url` (data URL) all work. Use `input_file`.
+- **Spark does NOT hear the embedded audio** (it answered "silent" for a clip with clear
+  speech). The Voice transcript is therefore REQUIRED input for the Planner.
+- Spark samples frames sparsely (it misread first/last frame counters), so its
+  `analysis_window_s` is coarse. Pad it (04 §2.4) and let code refine it (05 §2.1).
+- Cost is negligible: ~1.5k input tokens for a 5 s clip (~$0.007 per call).
+- Structured output on the Responses API works with `strict: false`; `strict: true` requires a
+  strict-compatible schema (every object `additionalProperties: false`, every property listed
+  in `required`, optional values as nullable types). Implement `framelab.clients.meta.
+  strict_schema(model) -> dict` (recursive; see `scripts/spikes/spike_followup.py`) and use
+  `strict: true` everywhere. Always validate with Pydantic models configured
+  `extra="forbid"`.
 - Fallback if video input fails: send 8 key frames as `input_image` data URLs plus the
   transcript (Chat Completions supports images).
 
@@ -354,12 +371,18 @@ spec = ExperimentSpec.model_validate_json(resp.output_text)
 
 - Model ID `muse-wonder-1.0`, Standard mode only on the Model API, reasoning levels
   `minimal … max`, structured output and tool calling supported.
-- Use Chat Completions + structured output (same code path as §6.2) with
-  `reasoning_effort="high"`.
-- **VERIFY** `muse-wonder-1.0` on Chat Completions with `response_format`. If unsupported,
-  use the Responses API (§6.3 pattern without the file).
-- If Wonder is unavailable or `FRAMELAB_USE_WONDER=0`, the Auditor uses `muse-spark-1.3`
-  with a separate system prompt and no shared conversation history. Log this in the verdict.
+- **M1 finding (V7, V7b): Wonder is not reliable for our structured tasks yet.** Non-strict:
+  extra keys and wrong content. Strict (`strict: true` + strict schema): keys obeyed, but on
+  the same short extraction prompt Chat returned `target_concept: "Measurement"` and Responses
+  returned `experiment: "melting"` with an essay as target. Spark answered perfectly in the
+  same test. Wonder spends ~1.4–1.7k reasoning tokens per call (~$0.03).
+- **Decision:** the Auditor defaults to `muse-spark-1.3` (`FRAMELAB_USE_WONDER=0`) with its own
+  system prompt and NO shared conversation history (independence comes from the separate
+  context, not the model). In M7 re-evaluate Wonder once on a realistic auditor input (full
+  draft + ledger + gates, strict `Verdict` schema). Enable it only if it returns correct
+  verdicts on the PASS and the trap fixture. If enabled: Chat Completions, strict schema,
+  `reasoning_effort="high"`, Pydantic `extra="forbid"`, one retry, then Spark fallback.
+  Log the auditor model in every verdict.
 
 ## 8. Muse Voice Transcribe
 
@@ -402,8 +425,11 @@ def transcribe(path: Path, keywords: list[str], language_bias: list[str] | None)
 - `keywords`: `["bandul", "pendulum", "gravitasi", "gravity", "sentimeter", "centimeter",
   "meter", "detik", "second", "periode", "period", "penggaris", "ruler", "bola", "ball",
   "hipotesis", "hypothesis", "diameter"]`.
-- `languageBias`: omit by default (auto-detect + code-switching). The cookbook uses values
-  like `"english"`. **VERIFY** the value for Indonesian (`"indonesian"`?).
+- `languageBias`: **omit** (auto-detect + code-switching). M1 (V8): `["indonesian"]` and
+  `["id"]` are both accepted, but with `["indonesian"]` numbers came back as words ("zero
+  point four five") instead of digits ("0.45"), so it makes extraction harder.
+- `ENDPOINTING` returns `turns[]` with `startMs/endMs`; `PUSH_TO_TALK` returns none (V8).
+- Re-test with a real human voice recording in M5 (the M1 test used Windows TTS).
 - Indonesian is one of the 25 supported languages. Timestamps are turn-level only. There is
   no TTS.
 - Errors: 400 = too long/malformed, 413 = too large.

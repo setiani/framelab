@@ -383,7 +383,8 @@ class Settings(BaseSettings):
     max_analysis_s: float = 20.0
     max_long_edge_px: int = 960
     concurrency: int = 2
-    use_wonder: bool = True
+    use_wonder: bool = False                # M1: Wonder unreliable on structured tasks (02 §7)
+    mask_dilation_px: float = 1.5           # M1: SAM masks ~1 px larger per side (04 §6.2)
     designer_backend: Literal["meta", "baseten"] = "meta"
     analyst_max_steps: int = 12
     max_revise_rounds: int = 2
