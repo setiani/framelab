@@ -20,6 +20,8 @@ building period.** No pre-existing code was used.
 
 | 2026-10-29 (late) | M7: Auditor (Muse Spark, separate context, structured verdict with retry, deterministic pre- and post-checks, Wonder behind a flag), finalisation, revise loop (REJECT → analyst round 2), Designer (predictions from code, safety limit 2 m), second-language draft with placeholder check, slow-motion re-run helper. Live: PASS run (≈ $0.14), synthetic ruler off-plane trap gives NEEDS_RERECORD in EN and ID (≈ $0.07). |
 
+| 2026-10-29 (night) | M8: charts (Plotly JSON, 1600×900 matplotlib PNG, series T₀² vs L), overlay video (mask contours, trail, HUD from fmt-formatted numbers, end card with the verdict), report HTML and A4 PDF in EN and ID (claims as phrases, appendices, data sample), recording-feedback page, `data.csv` in SI, and `framelab replay` offline. Live: replay on the PASS and trap runs, no model calls. |
+
 <!-- Add one row per day: milestone(s) finished, notable decisions, what changed. -->
 
 ## AI assistance
