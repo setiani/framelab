@@ -19,4 +19,5 @@ Decide status:
   to change, which claim/gate).
 - NEEDS_RERECORD: the data itself cannot support a measurement; give practical recording tips in
   English and Indonesian.
+
 Return only the Verdict JSON.

@@ -139,7 +139,16 @@ def doctor(
 
 
 EXPERIMENT_AXIS = {"free_fall": "y", "pendulum": "x", "melting": "xy"}
-UNTIL_CHOICES = ("ingesting", "planning", "segmenting", "measuring", "analyzing")
+UNTIL_CHOICES = (
+    "ingesting",
+    "planning",
+    "segmenting",
+    "measuring",
+    "analyzing",
+    "auditing",
+    "rendering",
+    "designing",
+)
 
 
 def flag_fields(

@@ -386,6 +386,7 @@ class Verdict(BaseModel):
     rerecord_tips_id: list[str] = Field(default_factory=list)
     auditor_model: str = ""
     notes: str = ""
+    overrides: list[str] = Field(default_factory=list)  # deterministic post-check reasons (06 §5)
 
 
 class DesignerProposal(BaseModel):

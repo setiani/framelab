@@ -20,7 +20,20 @@ import numpy as np
 from framelab.agent.narrative import statement_errors
 from framelab.schemas import Claim, ClaimType, Evidence
 
-EVIDENCE_PREFIXES = ("seg", "trk", "cal", "win", "fit", "ci", "der", "gate", "fig", "cmp", "spk")
+EVIDENCE_PREFIXES = (
+    "seg",
+    "trk",
+    "cal",
+    "win",
+    "fit",
+    "ci",
+    "der",
+    "gate",
+    "fig",
+    "cmp",
+    "spk",
+    "pred",
+)
 _ID_RE = re.compile(r"^(?P<prefix>[a-z]+)_(?P<num>\d+)$|^c(?P<claim>\d+)$")
 
 

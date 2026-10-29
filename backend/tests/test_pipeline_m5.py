@@ -20,7 +20,7 @@ needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg
 def no_analyst(monkeypatch):
     """The Analyst is replaced by its deterministic fallback: these M5 tests make no chat calls."""
 
-    async def fallback_only(session):
+    async def fallback_only(session, **kwargs):
         return analyst.fallback(session, steps=0)
 
     monkeypatch.setattr(analyst, "run", fallback_only)

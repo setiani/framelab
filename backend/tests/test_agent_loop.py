@@ -184,7 +184,9 @@ async def test_request_rerecord_ends_the_run(tmp_path, monkeypatch) -> None:
                                     "tips_id": ["Gunakan slow motion."]})]]  # fmt: skip
     state, run_dir, _, _ = await run_analyst(tmp_path, monkeypatch, steps)
 
-    assert state["verdict"] == "NEEDS_RERECORD" and state["stage"] == "done"
+    # the run stops after ANALYZING (M7): the verdict comes from the review stages, see
+    # test_revise_loop.py for the NEEDS_RERECORD verdict with --until auditing
+    assert state["verdict"] is None and state["stage"] == "analyzing"
     request = json.loads((run_dir / "analysis" / "rerecord.json").read_text(encoding="utf-8"))
     assert request["tips_en"] == ["Use slow motion."]
 

@@ -13,26 +13,34 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from framelab.agent import analyst, planner
+from framelab.agent import analyst, auditor, designer, planner, translator
+from framelab.agent import gates as gates_mod
 from framelab.agent import session as session_mod
 from framelab.agent.ledger import Ledger
+from framelab.agent.session import AnalysisSession
 from framelab.clients import meta as meta_client
 from framelab.clients import sam as sam_client
 from framelab.config import Settings
+from framelab.physics.experiments import REGISTRY
 from framelab.pipeline import analysis_auto, measure, segment
 from framelab.pipeline import ingest as ingest_mod
 from framelab.pipeline import transcribe as transcribe_stage
 from framelab.pipeline.context import RunContext
 from framelab.schemas import (
     ExperimentSpec,
+    GateResult,
     IngestResult,
+    Lang,
     Observation,
+    ReportDraft,
     RunState,
     Stage,
     Transcript,
+    Verdict,
 )
 from framelab.store import write_json_atomic
 
@@ -167,37 +175,138 @@ async def execute_run(
             ctx.finish(None, partial=True)
             return ctx.state
 
-        rerecord = False
-        with ctx.stage(Stage.ANALYZING):
-            if spec_override is None and spec.experiment == "free_fall":
-                # M6: the Analyst drives the tools; the deterministic path is its fallback (06 §3.4)
-                session = session_mod.prepare(ctx, spec, ing, seg, observations, summary)
-                outcome = await analyst.run(session)
-                if outcome.fallback:
-                    headline = ctx.state.headline
-                else:
-                    headline = session.headline()
-                    ctx.state.headline = headline
-                rerecord = outcome.kind == "rerecord"
-                for name, rel in (("ledger", "analysis/ledger.jsonl"),
-                                  ("draft_report", "draft_report.json")):  # fmt: skip
-                    if (ctx.run_dir / rel).is_file():
-                        ctx.add_artifact(name, ctx.run_dir / rel, "application/json")
-            else:
-                # M3: deterministic analysis: --no-planner (no LLM) and pendulum (agent in M6.1)
+        if spec_override is None and spec.experiment == "free_fall":
+            review = await _review(ctx, spec, ing, seg, observations, summary, until)
+            if review.stopped_after_analyzing:
+                ctx.finish(None, review.headline, partial=True)
+                return ctx.state
+        else:
+            with ctx.stage(Stage.ANALYZING):
+                # M3: deterministic analysis without an LLM: --no-planner and pendulum
                 headline = analysis_auto.run(ctx, spec, ing, seg, observations, summary)
-        if rerecord:
-            # Without the Auditor (M7) an Analyst request for re-recording is final.
-            ctx.finish("NEEDS_RERECORD")
-            return ctx.state
-        if _reached(Stage.ANALYZING, until):
+            if _reached(
+                Stage.AUDITING, until
+            ):  # asked for a review or report: say why it cannot run
+                ctx.emit(
+                    "warning",
+                    message="No Auditor or report for this run (agent path is free fall)",
+                )
             ctx.finish(None, headline, partial=True)
             return ctx.state
 
-        raise NotImplementedError("Stages after ANALYZING arrive in M7–M8.")
+        if _reached(Stage.AUDITING, until):
+            ctx.finish(review.status, review.headline, partial=True)
+            return ctx.state
+        with ctx.stage(Stage.RENDERING):
+            await _translate(ctx, review)  # the second-language draft; PDFs arrive in M8
+        if _reached(Stage.RENDERING, until):
+            ctx.finish(review.status, review.headline, partial=True)
+            return ctx.state
+        with ctx.stage(Stage.DESIGNING):
+            if review.status in PASSING:
+                gate_warnings = [g.message_en for g in review.gates if g.status in ("warn", "fail")]
+                await designer.run(
+                    review.session, headline=review.headline, gate_warnings=gate_warnings
+                )
+        ctx.finish(review.status, review.headline)
+        return ctx.state
     except Exception as exc:  # noqa: BLE001
         ctx.fail(exc)
     return ctx.state
+
+
+PASSING = ("PASS", "PASS_WITH_WARNINGS")
+
+
+@dataclass
+class Review:
+    """Outcome of the Analyst, Auditor and revise rounds (04 §1, 06 §8)."""
+
+    session: AnalysisSession
+    status: str | None
+    headline: dict[str, Any] | None
+    draft: ReportDraft | None
+    gates: list[GateResult]
+    stopped_after_analyzing: bool = False
+
+
+async def _review(
+    ctx: RunContext,
+    spec: ExperimentSpec,
+    ing: IngestResult,
+    seg: segment.SegmentationOutput,
+    observations: list[Observation],
+    summary: dict[str, Any],
+    until: Stage | None,
+) -> Review:
+    """Analyst → gates → Auditor, repeated while the Auditor says REJECT (04 §1)."""
+    session: AnalysisSession | None = None
+    fix: list[str] = []
+    thresholds = REGISTRY[spec.experiment].gates
+    headline: dict[str, Any] | None = None
+    draft: ReportDraft | None = None
+    gates: list[GateResult] = []
+    verdict: Verdict | None = None
+    for round_ in range(ctx.settings.max_revise_rounds + 1):
+        with ctx.stage(Stage.ANALYZING):
+            if session is None:
+                session = session_mod.prepare(ctx, spec, ing, seg, observations, summary)
+            session.round = round_
+            outcome = await analyst.run(session, fix_instructions=fix)
+            if outcome.fallback:
+                headline = ctx.state.headline
+            else:
+                headline = session.headline()
+                ctx.state.headline = headline or ctx.state.headline
+            draft = outcome.draft if outcome.kind == "draft" else None
+        if round_ == 0 and _reached(Stage.ANALYZING, until):
+            return Review(session, None, headline, draft, [], stopped_after_analyzing=True)
+        with ctx.stage(Stage.AUDITING):
+            gates = gates_mod.run_gates(session, thresholds)
+            if outcome.kind == "rerecord":
+                verdict = auditor.rerecord_verdict(outcome.rerecord, gates)
+            else:
+                verdict = await auditor.run(session, outcome.draft, gates, round_=round_)
+        if verdict.status != "REJECT":
+            break
+        ctx.state.revise_rounds = round_ + 1
+        fix = verdict.fix_instructions
+    assert verdict is not None  # the loop runs at least once
+    status, extra = auditor.finalize_verdict(verdict, gates)
+    for message in extra:
+        ctx.emit("warning", message=message)
+    path = ctx.run_dir / "analysis" / "verdict.json"
+    write_json_atomic(path, verdict.model_copy(update={"status": status}))
+    ctx.add_artifact("verdict", path, "application/json")
+    ctx.emit("verdict", status=status, final=True, revise_rounds=ctx.state.revise_rounds)
+    _slowmo_hint(ctx, gates)
+    return Review(session, status, headline, draft, gates)
+
+
+def _slowmo_hint(ctx: RunContext, gates: list[GateResult]) -> None:
+    """G4 slow-motion diagnosis: a re-run with the right capture fps fixes it (06 §7)."""
+    for gate in gates:
+        if gate.gate == "G4" and gate.diagnosis == "slowmo_retimed":
+            fps = 30 * int(gate.metrics.get("slowmo_k", 0))
+            path = ctx.run_dir / "analysis" / "rerun.json"
+            write_json_atomic(path, {"capture_fps": fps, "diagnosis": gate.diagnosis})
+            ctx.emit("warning", message=gate.message_en)
+
+
+async def _translate(ctx: RunContext, review: Review) -> None:
+    """The draft in the other language (04 §9). Kept single-language if the check fails."""
+    if review.draft is None:
+        return
+    dst: Lang = "id" if review.draft.lang == "en" else "en"
+    translated, problem = await translator.translate(
+        review.draft, review.session.ledger, dst=dst, emit=ctx.emit
+    )
+    if translated is None:
+        ctx.emit("warning", message=f"translation to {dst} skipped: {problem}")
+        return
+    path = ctx.run_dir / f"draft_{dst}.json"
+    write_json_atomic(path, translated)
+    ctx.add_artifact(f"draft_{dst}", path, "application/json")
 
 
 def measure_observations(

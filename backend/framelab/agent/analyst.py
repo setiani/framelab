@@ -45,7 +45,7 @@ def load_prompt() -> str:
     return re.sub(r"^<!--.*?-->\s*", "", text, count=1, flags=re.DOTALL)
 
 
-def context_message(s: AnalysisSession) -> str:
+def context_message(s: AnalysisSession, fix_instructions: list[str] | None = None) -> str:
     """One user message: spec, experiment definition, track, scale, pre-computed evidence (§3.2)."""
     definition = REGISTRY[s.spec.experiment]
     evidence = [f"{e.id}: {e.summary}" for e in s.ledger.evidence()]
@@ -64,6 +64,10 @@ def context_message(s: AnalysisSession) -> str:
         "evidence": evidence,
         "required_sections": ["aim", "setup", "method", "results", "error_analysis", "conclusion"]
         + (["hypothesis_evaluation"] if s.spec.hypothesis else []),
+        "round": s.round,
+        # round > 0: the Auditor's fixes, and the claims that already exist (06 §3.2)
+        "fix_instructions": fix_instructions or [],
+        "existing_claims": [f"{c.id}: {c.statement_en}" for c in s.ledger.claims()],
     }
     return json.dumps(context, ensure_ascii=False, default=str)
 
@@ -78,13 +82,13 @@ def _assistant_message(msg: Any) -> dict[str, Any]:
     return {"role": "assistant", "content": msg.content or "", "tool_calls": calls}
 
 
-async def run(s: AnalysisSession) -> AnalystOutcome:
+async def run(s: AnalysisSession, *, fix_instructions: list[str] | None = None) -> AnalystOutcome:
     """The Analyst loop: at most ``analyst_max_steps`` model turns (06 §3.1)."""
     settings = s.ctx.settings
     emit = s.ctx.emit
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": load_prompt()},
-        {"role": "user", "content": context_message(s)},
+        {"role": "user", "content": context_message(s, fix_instructions)},
     ]
     failures = 0
     step = 0
