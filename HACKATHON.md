@@ -18,6 +18,8 @@ building period.** No pre-existing code was used.
 
 | 2026-10-29 (night) | M6 (free fall): claim ledger (values copied from evidence, G5 bare-number check with allow-list, EN/ID rendering), gates G1–G5 with EN/ID messages, 15 Analyst tools with schemas and 2 KB results, Analyst loop (Muse Spark chat with tools, budget signal, one retry, deterministic fallback). Live run on the M1 spike clip (≈ $0.09): the Analyst submitted a G5-clean report with 6 claims; g = 9.83 ± 0.03 m/s². Pendulum, Auditor and verdict follow in M6.1/M7. |
 
+| 2026-10-29 (late) | M7: Auditor (Muse Spark, separate context, structured verdict with retry, deterministic pre- and post-checks, Wonder behind a flag), finalisation, revise loop (REJECT → analyst round 2), Designer (predictions from code, safety limit 2 m), second-language draft with placeholder check, slow-motion re-run helper. Live: PASS run (≈ $0.14), synthetic ruler off-plane trap gives NEEDS_RERECORD in EN and ID (≈ $0.07). |
+
 <!-- Add one row per day: milestone(s) finished, notable decisions, what changed. -->
 
 ## AI assistance
