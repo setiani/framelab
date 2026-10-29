@@ -104,15 +104,139 @@ def fit_cubic(t: np.ndarray, y: np.ndarray) -> FitResult:
 
 
 def predict(fit: FitResult, t: np.ndarray) -> np.ndarray:
+    if fit.model == "damped_sine":
+        return predict_damped_sine(fit, t)
     coeffs = np.array([fit.params[f"c{i}"] for i in range(len(fit.params))])
     return polyval(np.asarray(t, dtype=float) - fit.t_offset, coeffs)
 
 
+DAMPED_SINE_PARAMS = ("A", "gamma", "omega", "phi", "c", "d")
+F_MIN_HZ, F_MAX_HZ = 0.2, 5.0
+
+
+def damped_sine(t: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """x = A·e^(−γt)·cos(ω_d·t + φ) + c + d·t (t already shifted to start at 0)."""
+    a, gamma, omega, phi, c, d = p
+    return a * np.exp(-gamma * t) * np.cos(omega * t + phi) + c + d * t
+
+
+def _damped_sine_jac(t: np.ndarray, p: np.ndarray) -> np.ndarray:
+    a, gamma, omega, phi, _c, _d = p
+    env = np.exp(-gamma * t)
+    cos = np.cos(omega * t + phi)
+    sin = np.sin(omega * t + phi)
+    return np.column_stack(
+        [env * cos, -a * t * env * cos, -a * t * env * sin, -a * env * sin, np.ones_like(t), t]
+    )
+
+
 def guess_damped_sine(t: np.ndarray, x: np.ndarray) -> dict[str, float]:
-    """FFT (zero-pad ×8, parabolic peak), Hilbert envelope for gamma (05 §3.2). M4."""
-    raise NotImplementedError("Milestone M4: see docs/plan/09-milestones-and-tasks.md")
+    """Initial guesses (05 §3.2): FFT peak (Hann, zero-pad ×8, parabolic), Hilbert envelope."""
+    from scipy.signal import hilbert
+
+    t = np.asarray(t, dtype=float) - float(t[0])
+    x = np.asarray(x, dtype=float)
+    c0 = float(np.median(x))
+    xd = x - c0
+    dt = float(np.median(np.diff(t)))
+    n = xd.size
+    nfft = 1 << int(np.ceil(np.log2(n * 8)))
+    spec = np.abs(np.fft.rfft(xd * np.hanning(n), nfft))
+    freqs = np.fft.rfftfreq(nfft, dt)
+    band = (freqs >= F_MIN_HZ) & (freqs <= F_MAX_HZ)
+    if not band.any():
+        raise ValueError("no frequency in the 0.2–5 Hz band (clip too short or fps too low)")
+    idx = int(np.flatnonzero(band)[np.argmax(spec[band])])
+    f0 = float(freqs[idx])
+    if 0 < idx < spec.size - 1:  # parabolic interpolation of the peak
+        a_, b_, c_ = np.log(spec[idx - 1 : idx + 2] + 1e-300)
+        denom = a_ - 2 * b_ + c_
+        if denom != 0:
+            f0 += 0.5 * (a_ - c_) / denom * (freqs[1] - freqs[0])
+    amp = float((np.percentile(xd, 95) - np.percentile(xd, 5)) / 2)
+    analytic = hilbert(xd)
+    env = np.abs(analytic)
+    inner = slice(n // 10, n - n // 10) if n >= 20 else slice(None)
+    try:
+        slope = np.polyfit(t[inner], np.log(np.maximum(env[inner], 1e-9)), 1)[0]
+    except (np.linalg.LinAlgError, ValueError):
+        slope = 0.0
+    gamma0 = float(np.clip(-slope, 0.0, 1.0))
+    phi0 = float(np.angle(analytic[0]))
+    return {"A": max(amp, 1e-6), "gamma": gamma0, "omega": 2 * np.pi * f0, "phi": phi0,
+            "c": c0, "d": 0.0}  # fmt: skip
 
 
-def fit_damped_sine(t: np.ndarray, x: np.ndarray) -> FitResult:
-    """x = A e^(−γt) cos(ω_d t + φ) + c + d t via least_squares (05 §3.3). M4."""
-    raise NotImplementedError("Milestone M4: see docs/plan/09-milestones-and-tasks.md")
+def _ls_damped_sine(tt: np.ndarray, x: np.ndarray, p0: np.ndarray):
+    from scipy.optimize import least_squares
+
+    lower = [0.0, 0.0, 2 * np.pi * F_MIN_HZ, -np.inf, -np.inf, -np.inf]
+    upper = [np.inf, 5.0, 2 * np.pi * F_MAX_HZ, np.inf, np.inf, np.inf]
+    p0 = np.clip(p0, np.array(lower) + 1e-12, np.array(upper) - 1e-12)
+    return least_squares(
+        lambda p: damped_sine(tt, p) - x,
+        p0,
+        jac=lambda p: _damped_sine_jac(tt, p),
+        bounds=(lower, upper),
+        method="trf",
+        loss="linear",
+        x_scale="jac",
+    )
+
+
+def damped_sine_params(t: np.ndarray, x: np.ndarray, p0: np.ndarray) -> np.ndarray:
+    """Fast refit (bootstrap): t already shifted, warm start from ``p0``."""
+    return _ls_damped_sine(np.asarray(t, float), np.asarray(x, float), np.asarray(p0, float)).x
+
+
+def fit_damped_sine(
+    t: np.ndarray, x: np.ndarray, guess: dict[str, float] | None = None
+) -> FitResult:
+    """x = A e^(−γt) cos(ω_d t + φ) + c + d t via least_squares (05 §3.3), pixels and seconds.
+
+    The fit is started from the FFT guess and, as a guard against a wrong phase, from the
+    guess with φ + π and A unchanged; the lower-cost solution wins.
+    """
+    t = np.asarray(t, dtype=float)
+    x = np.asarray(x, dtype=float)
+    if t.size < 12:
+        raise ValueError(f"damped-sine fit needs at least 12 points, got {t.size}")
+    t0 = float(t[0])
+    tt = t - t0
+    g0 = guess or guess_damped_sine(t, x)
+    p0 = np.array([g0[k] for k in DAMPED_SINE_PARAMS])
+    best = None
+    for dphi in (0.0, np.pi, np.pi / 2, -np.pi / 2):
+        start = p0.copy()
+        start[3] += dphi
+        res = _ls_damped_sine(tt, x, start)
+        if best is None or res.cost < best.cost:
+            best = res
+    assert best is not None
+    p = best.x.copy()
+    p[3] = (p[3] + np.pi) % (2 * np.pi) - np.pi
+    resid = x - damped_sine(tt, p)
+    dof = t.size - p.size
+    cov = None
+    if dof > 0:
+        jac = _damped_sine_jac(tt, p)
+        try:
+            cov = (np.linalg.inv(jac.T @ jac) * float(np.sum(resid**2)) / dof).tolist()
+        except np.linalg.LinAlgError:
+            cov = None
+    return FitResult(
+        model="damped_sine",
+        params={k: float(v) for k, v in zip(DAMPED_SINE_PARAMS, p, strict=True)},
+        cov=cov,
+        r2=r_squared(x, x - resid),
+        rms_px=float(np.sqrt(np.mean(resid**2))),
+        durbin_watson=durbin_watson(resid),
+        n=int(t.size),
+        t_offset=t0,
+        residuals=resid,
+    )
+
+
+def predict_damped_sine(fit: FitResult, t: np.ndarray) -> np.ndarray:
+    p = np.array([fit.params[k] for k in DAMPED_SINE_PARAMS])
+    return damped_sine(np.asarray(t, dtype=float) - fit.t_offset, p)

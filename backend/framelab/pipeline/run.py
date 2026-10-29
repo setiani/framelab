@@ -1,7 +1,8 @@
 """Orchestrator: executes the stages in order (docs/plan/04-pipeline-and-measurement.md §1).
 
-Implemented so far (M2): INGESTING → [TRANSCRIBING: M5] → PLANNING (manual spec until M5)
-→ SEGMENTING → MEASURING (observations). Later stages raise until their milestone lands.
+Implemented so far (M2–M4): INGESTING → [TRANSCRIBING: M5] → PLANNING (manual spec until M5)
+→ SEGMENTING → MEASURING → ANALYZING (deterministic free fall + pendulum). Later stages raise
+until their milestone lands.
 """
 
 from __future__ import annotations

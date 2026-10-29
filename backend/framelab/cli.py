@@ -152,9 +152,11 @@ def manual_spec(
     window: str | None,
     lang: str,
     ball_diameter_m: float | None = None,
+    string_length_m: float | None = None,
+    predict: str | None = None,
 ):
     """Temporary ExperimentSpec from CLI flags until the Planner exists (M5)."""
-    from framelab.schemas import ExperimentSpec, ReferenceObject
+    from framelab.schemas import ExperimentSpec, Quantity, ReferenceObject
 
     if window:
         t0, t1 = (float(v) for v in window.split(","))
@@ -170,9 +172,16 @@ def manual_spec(
         if ref_concept
         else None
     )
+    spoken = {}
+    if string_length_m:
+        spoken["string_length"] = Quantity(value=string_length_m, unit="m")
+    prediction = parse_quantity(predict) if predict else None
     return ExperimentSpec(
         experiment=experiment,  # type: ignore[arg-type]
         target_concept=concept,
+        spoken_params=spoken,  # type: ignore[arg-type]
+        hypothesis=f"Prediction: {predict}" if predict else None,
+        hypothesis_prediction=prediction,
         target_alt_concepts=alt_concepts,
         reference=reference,
         object_diameter_m=ball_diameter_m,
@@ -182,6 +191,57 @@ def manual_spec(
         setup_description="Manual spec from CLI flags (Planner arrives in M5).",
         confidence=1.0,
     )
+
+
+def parse_quantity(text: str):
+    """'1.5 s' / '1,5s' / '9.8 m/s^2' → Quantity (unit must be known)."""
+    import re
+
+    from framelab.schemas import Quantity
+
+    m = re.fullmatch(r"\s*([-+]?\d+(?:[.,]\d+)?)\s*([A-Za-z/^0-9]+)\s*", text)
+    if not m:
+        raise typer.BadParameter(f"cannot parse {text!r}; use e.g. '1.5 s' or '9.8 m/s^2'")
+    q = Quantity(value=float(m.group(1).replace(",", ".")), unit=m.group(2))
+    try:
+        q.to_si()
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return q
+
+
+def print_headline(h: dict) -> None:
+    if h.get("experiment") == "pendulum":
+        label = "g" if h["quantity"] == "g" else "T"
+        typer.secho(f"\n  {label} = {h['formatted_en']}", bold=True)
+        unit = "m/s²" if h["quantity"] == "g" else "s"
+        parts = [f"95% CI [{h['ci95'][0]:.4g}, {h['ci95'][1]:.4g}] {unit}"]
+        if h.get("ref"):
+            parts.append(f"reference {h['ref']} m/s² ({h['rel_diff_en']})")
+        typer.echo("  " + " · ".join(parts))
+        theta = h.get("theta_mean_deg")
+        details = [
+            f"T = {h['period_formatted_en']}",
+            f"T0 = {h['period0']:.4f} s"
+            + (f" (amplitude {theta:.1f}°)" if theta is not None else " (no amplitude correction)"),
+            f"{h['n_cycles']:.1f} cycles",
+            f"{h['fit_points']} points",
+        ]
+        if h.get("length_m"):
+            details.append(f"L = {h['length_m']:.3f} m ({h['length_source']})")
+        typer.echo("  " + " · ".join(details))
+        if h.get("hypothesis_outcome"):
+            typer.echo(f"  hypothesis: {h['hypothesis_outcome']}")
+        typer.echo("")
+        return
+    agree = h.get("scale_agreement_pct")
+    typer.secho(f"\n  g = {h['formatted_en']}", bold=True)
+    typer.echo(
+        f"  95% CI [{h['ci95'][0]:.3f}, {h['ci95'][1]:.3f}] m/s² · reference {h['ref']} m/s² "
+        f"({h['rel_diff_en']}) · {h['fit_points']} points · scale: {h['scale_method']}"
+        + (f" (2nd method agrees within {agree:.1f}%)" if agree is not None else "")
+    )
+    typer.echo("")
 
 
 @app.command()
@@ -206,6 +266,13 @@ def run(
     ball_diameter_m: Annotated[
         float | None, typer.Option(help="Real diameter of the ball (m), second scale method")
     ] = None,
+    string_length_m: Annotated[
+        float | None,
+        typer.Option(help="Pendulum length pivot → bob centre (m), as if spoken"),
+    ] = None,
+    predict: Annotated[
+        str | None, typer.Option(help="Hypothesis prediction, e.g. '1.5 s' or '9.8 m/s^2'")
+    ] = None,
     experiment: Annotated[str, typer.Option(help="free_fall | pendulum")] = "free_fall",
     lang: Annotated[str, typer.Option(help="Report language: id | en")] = "id",
     capture_fps: Annotated[int | None, typer.Option(help="Real capture fps for slow-mo")] = None,
@@ -228,6 +295,8 @@ def run(
         raise typer.BadParameter(f"--until must be one of {UNTIL_CHOICES}")
     if not concept:
         raise typer.BadParameter("--concept is required until the Planner lands (M5)")
+    if experiment not in ("free_fall", "pendulum"):
+        raise typer.BadParameter("--experiment must be free_fall or pendulum")
     settings = Settings(runs_dir=runs_dir) if runs_dir else Settings()
     store = RunStore(settings.runs_dir)
     state = store.create_run(video.name, lang=lang, capture_fps=capture_fps)  # type: ignore[arg-type]
@@ -242,6 +311,8 @@ def run(
         window,
         lang,
         ball_diameter_m,
+        string_length_m,
+        predict,
     )
     typer.echo(f"Run {state.run_id} → {store.run_dir(state.run_id)}")
     final = asyncio.run(execute_run(state.run_id, settings, spec_override=spec, until=Stage(until)))
@@ -254,15 +325,7 @@ def run(
         f"Stopped after {final.stage.value}. Cost ≈ ${final.cost_usd:.4f}", fg=typer.colors.GREEN
     )
     if final.headline:
-        h = final.headline
-        agree = h.get("scale_agreement_pct")
-        typer.secho(f"\n  g = {h['formatted_en']}", bold=True)
-        typer.echo(
-            f"  95% CI [{h['ci95'][0]:.3f}, {h['ci95'][1]:.3f}] m/s² · reference {h['ref']} m/s² "
-            f"({h['rel_diff_en']}) · {h['fit_points']} points · scale: {h['scale_method']}"
-            + (f" (2nd method agrees within {agree:.1f}%)" if agree is not None else "")
-        )
-        typer.echo("")
+        print_headline(final.headline)
     for name, rel in final.artifacts.items():
         typer.echo(f"  {name:<16} {run_dir / rel}")
     for warning in final.warnings:
@@ -275,16 +338,78 @@ def replay(run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)
     _not_yet("M8")
 
 
+def _store(runs_dir: Path | None):
+    from framelab.store import RunStore
+
+    settings = Settings(runs_dir=runs_dir) if runs_dir else Settings()
+    return RunStore(settings.runs_dir)
+
+
 @series_app.command("create")
-def series_create(run: Annotated[list[str], typer.Option("--run", help="Run id (repeat)")]) -> None:
-    """Create a series from finished pendulum runs (M4)."""
-    _not_yet("M4")
+def series_create(
+    run: Annotated[list[str], typer.Option("--run", help="Pendulum run id (repeat, ≥ 3)")],
+    runs_dir: Annotated[Path | None, typer.Option(help="Runs folder (default: settings)")] = None,
+) -> None:
+    """Create a series from finished pendulum runs with known string lengths."""
+    from framelab.pipeline import series as series_mod
+
+    store = _store(runs_dir)
+    try:
+        s = series_mod.create(store, run)
+    except (series_mod.SeriesError, KeyError) as exc:
+        typer.secho(f"Cannot create the series: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(s.series_id)
+    typer.secho(
+        f"Series {s.series_id} with {len(s.run_ids)} runs. "
+        f"Next: framelab series analyze {s.series_id}",
+        fg=typer.colors.GREEN,
+        err=True,
+    )
+
+
+@series_app.command("add")
+def series_add(
+    series_id: str,
+    run: Annotated[str, typer.Option("--run", help="Pendulum run id")],
+    runs_dir: Annotated[Path | None, typer.Option(help="Runs folder (default: settings)")] = None,
+) -> None:
+    """Add one more finished pendulum run to a series."""
+    from framelab.pipeline import series as series_mod
+
+    store = _store(runs_dir)
+    try:
+        s = series_mod.add_run(store, series_id, run)
+    except (series_mod.SeriesError, KeyError) as exc:
+        typer.secho(f"Cannot add the run: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"{s.series_id}: {len(s.run_ids)} runs")
 
 
 @series_app.command("analyze")
-def series_analyze(series_id: str) -> None:
-    """Analyse a series: T0² vs L regression (M4)."""
-    _not_yet("M4")
+def series_analyze(
+    series_id: str,
+    runs_dir: Annotated[Path | None, typer.Option(help="Runs folder (default: settings)")] = None,
+) -> None:
+    """Analyse a series: weighted T0² vs L → g, and T ∝ L^n."""
+    from framelab.pipeline import series as series_mod
+
+    store = _store(runs_dir)
+    try:
+        s = series_mod.analyze(store, series_id)
+    except (series_mod.SeriesError, KeyError) as exc:
+        typer.secho(f"Series analysis failed: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    h = s.headline or {}
+    typer.secho(f"\n  g = {h['formatted_en']}  (slope of T0² vs L, {h['n_runs']} runs)", bold=True)
+    typer.echo(
+        f"  95% CI [{h['ci95'][0]:.3f}, {h['ci95'][1]:.3f}] m/s² · reference {h['ref']} m/s² "
+        f"({h['rel_diff_pct']:+.2f}%)"
+    )
+    typer.echo(f"  T ∝ L^n with n = {h['n_formatted']} → √L law {h['sqrt_law']}")
+    for flag in h["flags"]:
+        typer.secho(f"  ! {flag}", fg=typer.colors.YELLOW)
+    typer.echo(f"\n  {store.series_dir(series_id) / 'analysis' / 'series.json'}")
 
 
 if __name__ == "__main__":  # pragma: no cover

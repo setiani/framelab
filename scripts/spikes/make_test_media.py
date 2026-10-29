@@ -5,6 +5,8 @@ Creates in scripts/spikes/out/media/:
   freefall_240fps_3s.mp4       same scene at 240 fps (V3)
   freefall_60fps_20s.mp4       repeated drops, 20 s (V3 duration limit)
   freefall_60fps_5s_audio.mp4  60 fps clip + audio track (V4, V5): speech if available
+  pendulum_60fps_12s.mp4       pendulum, L = 0.60 m (pivot → bob centre), θ0 = 15°, γ = 0.02 s⁻¹,
+                               held 0.5 s then released; exact nonlinear ODE (M4)
   keyframe_000.png             first frame (ruler + ball) for image segmentation
   speech.wav                   mono 16 kHz s16 speech (Windows SAPI / espeak-ng / --speech file)
   *.gt.json                    ground truth: fps, scale, ruler box, ball centre/radius per frame
@@ -169,6 +171,113 @@ def render(path: Path, fps: int, seconds: float, cycle_s: float, subframes: int 
     return gt
 
 
+# --- pendulum (M4) ---------------------------------------------------------------------------
+PEND_PIVOT = (330.0, 40.0)
+PEND_L_M = 0.60
+PEND_THETA0_DEG = 15.0
+PEND_GAMMA = 0.02
+PEND_BOB_D_M = 0.06
+PEND_HOLD_S = 0.5
+
+
+def pendulum_theta(t: np.ndarray) -> np.ndarray:
+    """θ(t): held at θ0 for PEND_HOLD_S, then the exact damped nonlinear pendulum."""
+    from scipy.integrate import solve_ivp
+
+    def rhs(_t, s):
+        th, om = s
+        return [om, -(G / PEND_L_M) * np.sin(th) - 2 * PEND_GAMMA * om]
+
+    th = np.full(t.shape, np.radians(PEND_THETA0_DEG))
+    moving = t > PEND_HOLD_S
+    if moving.any():
+        tm = t[moving] - PEND_HOLD_S
+        sol = solve_ivp(rhs, (0.0, float(tm.max()) + 1e-9), [th[0], 0.0], t_eval=tm,
+                        rtol=1e-11, atol=1e-12, method="DOP853")  # fmt: skip
+        th[moving] = sol.y[0]
+    return th
+
+
+def pendulum_background() -> np.ndarray:
+    img = background()
+    px, py = PEND_PIVOT
+    cv2.rectangle(img, (int(px) - 60, int(py) - 14), (int(px) + 60, int(py)), (70, 70, 70), -1)
+    return img
+
+
+def bob_position(theta: float) -> tuple[float, float]:
+    r = PEND_L_M * PX_PER_M
+    return PEND_PIVOT[0] + r * np.sin(theta), PEND_PIVOT[1] + r * np.cos(theta)
+
+
+def render_pendulum(path: Path, fps: int, seconds: float, subframes: int = 8) -> dict:
+    n = int(round(fps * seconds))
+    bg = pendulum_background()
+    cmd = [
+        ffmpeg(), "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+        "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-g", str(fps), str(path),
+    ]  # fmt: skip
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    assert proc.stdin is not None
+    shutter = 0.5 / fps
+    offsets = shutter * (np.arange(subframes) / max(subframes - 1, 1) - 0.5)
+    t_all = np.clip((np.arange(n)[:, None] / fps + offsets[None, :]).ravel(), 0, None)
+    th_all = pendulum_theta(np.sort(np.unique(t_all)))
+    lookup = dict(zip(np.sort(np.unique(t_all)).tolist(), th_all.tolist(), strict=True))
+    r_bob = PEND_BOB_D_M * PX_PER_M / 2
+    frames_gt = []
+    for k in range(n):
+        acc = np.zeros((H, W, 3), np.float32)
+        xs, ys = [], []
+        for off in offsets:
+            th = lookup[max(k / fps + off, 0.0)]
+            bx, by = bob_position(th)
+            xs.append(bx)
+            ys.append(by)
+            img = bg.copy()
+            p0 = (int(round(PEND_PIVOT[0] * 16)), int(round(PEND_PIVOT[1] * 16)))
+            p1 = (int(round(bx * 16)), int(round(by * 16)))
+            cv2.line(img, p0, p1, (40, 40, 40), 2, cv2.LINE_AA, 4)
+            cv2.circle(img, p1, int(round(r_bob * 16)), (40, 40, 220), -1, cv2.LINE_AA, 4)
+            acc += img
+        frame = (acc / subframes).astype(np.uint8)
+        cv2.rectangle(frame, (12, 10), (190, 52), (255, 255, 255), -1)
+        cv2.putText(
+            frame, f"F {k:04d}", (20, 44), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 0, 0), 2, cv2.LINE_AA
+        )
+        proc.stdin.write(frame.tobytes())
+        frames_gt.append({"frame": k, "cx": round(float(np.mean(xs)), 3),
+                          "cy": round(float(np.mean(ys)), 3)})  # fmt: skip
+    proc.stdin.close()
+    if proc.wait() != 0:
+        raise RuntimeError(f"ffmpeg failed for {path}")
+    gt = {
+        "video": path.name,
+        "fps": fps,
+        "n_frames": n,
+        "width": W,
+        "height": H,
+        "m_per_px": 1 / PX_PER_M,
+        "g": G,
+        "pivot_px": list(PEND_PIVOT),
+        "length_m": PEND_L_M,
+        "theta0_deg": PEND_THETA0_DEG,
+        "gamma": PEND_GAMMA,
+        "bob_radius_px": r_bob,
+        "bob_diameter_m": PEND_BOB_D_M,
+        "hold_s": PEND_HOLD_S,
+        "ruler_box": RULER,
+        "ruler_length_m": 1.0,
+        "small_angle_period_s": float(2 * np.pi * np.sqrt(PEND_L_M / G)),
+        "frames": frames_gt,
+    }
+    path.with_suffix(".gt.json").write_text(json.dumps(gt), encoding="utf-8")
+    print(f"  ✓ {path.name}: {n} frames @ {fps} fps")
+    return gt
+
+
 def make_speech(out_wav: Path, user_file: Path | None) -> bool:
     raw = MEDIA / "speech_raw.wav"
     if user_file:
@@ -237,6 +346,12 @@ def main() -> None:
             print(f"  = {name} exists")
             continue
         render(path, fps, seconds, cycle, subframes=8 if fps <= 60 else 4)
+
+    pend = MEDIA / "pendulum_60fps_12s.mp4"
+    if pend.is_file() and not args.force:
+        print(f"  = {pend.name} exists")
+    else:
+        render_pendulum(pend, 60, 12.0)
 
     speech = MEDIA / "speech.wav"
     needs_speech = args.force or args.speech or not speech.is_file()

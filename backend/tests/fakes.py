@@ -83,3 +83,11 @@ def freefall_fake() -> FakeSam:
             "orange ball": "keyframe_000_orange_ball.sam.json.gz",
         },
     )
+
+
+def pendulum_fake() -> FakeSam:
+    """Synthetic pendulum (tests/synth_sam.py); the ruler is the live M1 recording (same box)."""
+    return FakeSam(
+        video={"red ball": "pendulum_60fps_12s_red_ball.sam.json.gz"},
+        image={"ruler": "keyframe_000_ruler.sam.json.gz", "string": "pendulum_string.sam.json.gz"},
+    )

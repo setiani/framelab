@@ -104,6 +104,107 @@ def fit_circle(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
     return float(cx), float(cy), float(r)
 
 
+MIN_PIVOT_SPAN_DEG = 8.0
+
+
+def fit_circle_geometric(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
+    """Kåsa start + geometric refinement (minimise Σ(|p − c| − r)²).
+
+    Kåsa alone is biased towards a small radius on short noisy arcs, which a pendulum swing
+    always is (±10–20°); the geometric fit removes that bias.
+    """
+    from scipy.optimize import least_squares
+
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    cx0, cy0, _r0 = fit_circle(x, y)
+
+    def resid(c: np.ndarray) -> np.ndarray:
+        d = np.hypot(x - c[0], y - c[1])
+        return d - d.mean()
+
+    sol = least_squares(resid, [cx0, cy0], method="lm")
+    cx, cy = sol.x
+    r = float(np.mean(np.hypot(x - cx, y - cy)))
+    return float(cx), float(cy), r
+
+
+def pivot_from_track(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    string_top: tuple[float, float] | None = None,
+    n_boot: int = 200,
+    seed: int = 1234,
+) -> dict[str, Any]:
+    """Pendulum pivot and radius (pivot → bob centre) from the bob track (04 §6.3).
+
+    Returns cx, cy, r_px, sigma_r_px (bootstrap over points), span_deg, reliable, and the
+    cross-check against the topmost point of the "string" mask when available.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    out: dict[str, Any] = {"warnings": []}
+    if x.size < 10:
+        out.update(reliable=False, r_px=None)
+        out["warnings"].append("pivot_too_few_points")
+        return out
+    cx, cy, r = fit_circle_geometric(x, y)
+    angles = np.degrees(np.arctan2(x - cx, y - cy))  # 0° = straight down
+    span = float(np.percentile(angles, 99) - np.percentile(angles, 1))
+    rng = np.random.default_rng(seed)
+    radii = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, x.size, x.size)
+        radii.append(fit_circle_geometric(x[idx], y[idx])[2])
+    sigma_r = float(np.std(radii))
+    reliable = span >= MIN_PIVOT_SPAN_DEG and cy < float(np.min(y))
+    out.update(
+        cx=cx,
+        cy=cy,
+        r_px=r,
+        sigma_r_px=sigma_r,
+        span_deg=span,
+        reliable=bool(reliable),
+        rms_px=float(np.sqrt(np.mean((np.hypot(x - cx, y - cy) - r) ** 2))),
+    )
+    if not reliable:
+        out["warnings"].append("pivot_unreliable_small_swing" if span < MIN_PIVOT_SPAN_DEG
+                               else "pivot_below_bob")  # fmt: skip
+    if string_top is not None:
+        dist = float(math.hypot(string_top[0] - cx, string_top[1] - cy))
+        out["string_top"] = list(string_top)
+        out["string_pivot_distance_px"] = dist
+        if dist > 0.1 * r:
+            out["warnings"].append("pivot_string_mismatch")
+    return out
+
+
+def string_top_point(record: Any) -> tuple[float, float] | None:
+    """Topmost pixel (centre of the top row) of the string mask, if any."""
+    xs, ys, _sx, _sy = mask_pixels(record)
+    if xs.size == 0:
+        return None
+    top = float(np.min(ys))
+    row = xs[ys <= top + 0.5]
+    return float(np.mean(row)), top
+
+
+def spoken_length_scale(
+    length_m: float, r_px: float, sigma_r_px: float, *, length_sigma_m: float = 0.005
+) -> ScaleEstimate:
+    """m/px from a spoken string length (pivot → bob centre) and the fitted radius (04 §6.3)."""
+    m_per_px = length_m / r_px
+    rel = math.sqrt((sigma_r_px / r_px) ** 2 + (length_sigma_m / length_m) ** 2)
+    return ScaleEstimate(
+        method="spoken_length",
+        m_per_px=m_per_px,
+        sigma_m_per_px=m_per_px * rel,
+        details={"length_m": length_m, "length_sigma_m": length_sigma_m, "r_px": r_px,
+                 "sigma_r_px": sigma_r_px, "rel_sigma": rel},
+    )  # fmt: skip
+
+
 def combine(estimates: list[ScaleEstimate]) -> Calibration:
     """Primary/secondary by priority ruler > object_diameter > spoken_length (04 §6.4)."""
     if not estimates:

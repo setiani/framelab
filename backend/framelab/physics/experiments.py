@@ -1,7 +1,7 @@
 """Experiment registry.
 
 Spec: docs/plan/05-physics-and-uncertainty.md §1
-Status: skeleton (M0). Implement in milestone M3.
+Status: used since M3 (free fall) and M4 (pendulum: min_valid_points); gates use it in M7.
 """
 
 from __future__ import annotations
