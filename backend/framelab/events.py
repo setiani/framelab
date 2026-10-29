@@ -18,6 +18,11 @@ from framelab.schemas import utcnow
 
 TERMINAL_EVENTS = frozenset({"done", "error"})
 
+# Live subscribers are process-wide: a run creates its own EventBus, the API streams with another
+# one, and the two must meet. Keyed by the absolute log path.
+_FANOUT_LOCK = threading.Lock()
+_FANOUT: dict[str, list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]]] = defaultdict(list)
+
 
 class EventBus:
     """Writes events to ``<runs_dir>/<run_id>/events.jsonl`` and pushes them to subscribers.
@@ -30,9 +35,6 @@ class EventBus:
         self.runs_dir = Path(runs_dir)
         self._lock = threading.Lock()
         self._seq: dict[str, int] = {}
-        self._subscribers: dict[str, list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]]] = (
-            defaultdict(list)
-        )
 
     def log_path(self, run_id: str) -> Path:
         return self.runs_dir / run_id / "events.jsonl"
@@ -58,7 +60,8 @@ class EventBus:
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
-            subscribers = list(self._subscribers.get(run_id, []))
+            with _FANOUT_LOCK:
+                subscribers = list(_FANOUT.get(str(path.resolve()), []))
         for loop, queue in subscribers:
             loop.call_soon_threadsafe(queue.put_nowait, event)
         return event
@@ -84,8 +87,9 @@ class EventBus:
         """Replay past events after ``after_seq``, then stream live ones until a terminal event."""
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
-        with self._lock:
-            self._subscribers[run_id].append((loop, queue))
+        key = str(self.log_path(run_id).resolve())
+        with _FANOUT_LOCK:
+            _FANOUT[key].append((loop, queue))
             replay = list(self.iter_events(run_id, after_seq))
         try:
             last_seq = after_seq
@@ -103,7 +107,7 @@ class EventBus:
                 if event["type"] in TERMINAL_EVENTS:
                     return
         finally:
-            with self._lock:
-                subs = self._subscribers.get(run_id, [])
+            with _FANOUT_LOCK:
+                subs = _FANOUT.get(key, [])
                 if (loop, queue) in subs:
                     subs.remove((loop, queue))
