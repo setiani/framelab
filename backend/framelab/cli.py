@@ -379,9 +379,22 @@ def run(
 
 
 @app.command()
-def replay(run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)]) -> None:
-    """Re-render outputs of a finished run without API calls (M8)."""
-    _not_yet("M8")
+def replay(
+    run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    overlay: Annotated[bool, typer.Option(help="Also render outputs/overlay.mp4")] = True,
+) -> None:
+    """Re-render the outputs (charts, data.csv, overlay, PDFs) from a run's saved files.
+
+    No model is called: everything is read from the run folder and the ledger."""
+    from framelab.pipeline.outputs import render_outputs
+
+    result = render_outputs(run_dir, with_overlay=overlay)
+    for name, path in sorted(result.paths.items()):
+        typer.echo(f"  {name:<22} {path}")
+    for warning in result.warnings:
+        typer.secho(f"  ! {warning}", fg=typer.colors.YELLOW)
+    if not result.paths:
+        raise typer.Exit(code=1)
 
 
 def _store(runs_dir: Path | None):

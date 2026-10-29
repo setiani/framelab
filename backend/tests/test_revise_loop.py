@@ -187,3 +187,63 @@ async def test_an_analyst_rerecord_request_skips_the_auditor(tmp_path, monkeypat
     assert auditor_chat.calls == []
     verdict_json = json.loads((run_dir / "analysis" / "verdict.json").read_text(encoding="utf-8"))
     assert "Film in brighter light." in verdict_json["rerecord_tips_en"]
+
+
+async def test_rendering_stage_writes_both_languages_and_registers_artifacts(
+    tmp_path, monkeypatch
+) -> None:
+    """Analyst → Auditor PASS → translation → outputs and PDFs → Designer, all in one run."""
+    from framelab.schemas import ReportDraft
+
+    translated = ReportDraft.model_validate({
+        **REPORT, "lang": "id", "title": "Pengukuran jatuh bebas", "aim": "Mengukur g.",
+        "setup": "Bola dijatuhkan.", "method": "Fit kuadratik.",
+        "results": [{"heading": "Hasil", "body": "Nilainya {{c01}}. Dibandingkan: {{c02}}."}],
+        "error_analysis": "Sebaran kecil.", "conclusion": "Lihat {{c01}}.",
+    })  # fmt: skip
+    designer_steps = [
+        [("predict", {"changed_variable": "height", "values": [0.5, 1.0]})],
+        json.dumps({
+            "title": "Fall time against height", "changed_variable": "height",
+            "controlled_variables": ["ball", "release from rest"],
+            "prediction_en": "The fall from {{p1}} takes {{p2}}.",
+            "prediction_id": "Jatuh dari {{p1}} memakan {{p2}}.",
+            "protocol_steps_en": ["Drop the ball from each height."],
+            "protocol_steps_id": ["Jatuhkan bola dari tiap tinggi."],
+            "safety_notes_en": ["Adult supervision for children."],
+            "safety_notes_id": ["Pengawasan orang dewasa untuk anak."],
+        }),
+    ]  # fmt: skip
+    routes = {
+        "analyst": FakeChat(ROUND0),
+        "auditor": FakeChat([verdict("PASS")]),
+        "translator": FakeChat([json.dumps(translated.model_dump(mode="json"))]),
+        "designer": FakeChat(designer_steps),
+    }
+
+    async def routed(**kw):
+        return await routes[kw["purpose"]](**kw)
+
+    freefall_fake().install(monkeypatch)
+
+    async def fake_plan(file_id, transcript, probe, lang, note, *, emit=None, ledger=None):
+        return planner_spec()
+
+    monkeypatch.setattr(planner, "run", fake_plan)
+    monkeypatch.setattr(meta_client, "chat", routed)
+    settings = Settings(runs_dir=tmp_path / "runs")
+    store = RunStore(settings.runs_dir)
+    state = store.create_run("freefall.mp4", lang="en")
+    shutil.copyfile(MEDIA / "freefall_60fps_5s.mp4", store.input_video_path(state.run_id))
+    await execute_run(state.run_id, settings, until=Stage.DESIGNING)
+
+    run_dir = store.run_dir(state.run_id)
+    final = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert final["verdict"] == "PASS_WITH_WARNINGS"  # the single-scale warning downgrades PASS
+    artifacts = final["artifacts"]
+    for name in ("report_en", "report_id", "chart_trajectory_png", "data_csv", "overlay"):
+        assert name in artifacts, name
+        assert (run_dir / artifacts[name]).exists(), name
+    assert (run_dir / "analysis" / "designer.json").exists()
+    proposal = json.loads((run_dir / "analysis" / "designer.json").read_text(encoding="utf-8"))
+    assert [p["id"] for p in proposal["predicted_values"]] == ["p1", "p2"]

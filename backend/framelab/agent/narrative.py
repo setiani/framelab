@@ -73,21 +73,25 @@ def render(text: str, claims: dict[str, str]) -> str:
     return PLACEHOLDER_RE.sub(substitute, text)
 
 
-def render_statement(claim: Claim, evidence: Evidence, lang: str) -> str:
-    """The claim sentence in ``lang``, with every template field filled from the ledger values."""
-    template = claim.statement_id if lang == "id" else claim.statement_en
+def _fields(claim: Claim, evidence: Evidence, lang: str, bare: bool) -> dict[str, str]:
+    """Template fields for one claim. ``bare`` leaves the unit out of value and ci (the template
+    places {unit} itself, so the unit would otherwise appear twice)."""
     unit = claim.unit or ""
     sigma = sigma_from_ci(*claim.ci95) if claim.ci95 else None
+    value_unit = "" if bare else unit
     fields: dict[str, str] = {"unit": unit_display(unit)}
     if claim.value is not None:
-        fields["value"] = fmt(claim.value, sigma, unit, lang)
+        fields["value"] = fmt(claim.value, sigma, value_unit, lang)
     if claim.ci95 is not None and sigma:
-        fields["ci"] = fmt_interval(claim.ci95[0], claim.ci95[1], unit, sigma, lang)
+        fields["ci"] = fmt_interval(claim.ci95[0], claim.ci95[1], value_unit, sigma, lang).strip()
     if "rel_diff_pct" in evidence.data:
         fields["rel_diff"] = fmt_pct(float(evidence.data["rel_diff_pct"]), lang, 2)
     if "outcome" in evidence.data:
         fields["outcome"] = OUTCOME_LABELS[lang].get(str(evidence.data["outcome"]), "")
+    return fields
 
+
+def _fill(template: str, fields: dict[str, str], claim: Claim, evidence: Evidence) -> str:
     def substitute(match: re.Match[str]) -> str:
         key = match.group(1)
         if key not in fields:
@@ -99,3 +103,26 @@ def render_statement(claim: Claim, evidence: Evidence, lang: str) -> str:
         return fields[key]
 
     return TEMPLATE_RE.sub(substitute, template)
+
+
+def render_statement(claim: Claim, evidence: Evidence, lang: str) -> str:
+    """The claim sentence in ``lang`` (appendix A), with every template field filled."""
+    template = claim.statement_id if lang == "id" else claim.statement_en
+    fields = _fields(claim, evidence, lang, bare="{unit}" in template)
+    return _fill(template, fields, claim, evidence)
+
+
+def phrase(claim: Claim, evidence: Evidence, lang: str) -> str:
+    """What ``{{cNN}}`` shows inside a sentence of the report (06 §6): the value with its unit
+    ("g = 9.82 ± 0.03 m/s²"), a relative difference, or the outcome of a hypothesis test."""
+    fields = _fields(claim, evidence, lang, bare=False)
+    if claim.claim_type == "comparison" and "rel_diff" in fields:
+        return (f"a difference of {fields['rel_diff']} from the reference value" if lang == "en"
+                else f"selisih {fields['rel_diff']} dari nilai referensi")  # fmt: skip
+    if claim.claim_type == "hypothesis_test" and "outcome" in fields:
+        return fields["outcome"]
+    if claim.value is not None:
+        label = f"{claim.quantity} = " if claim.quantity else ""
+        return label + fields["value"]
+    template = claim.statement_id if lang == "id" else claim.statement_en
+    return _fill(template, fields, claim, evidence)

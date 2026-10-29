@@ -26,7 +26,7 @@ from framelab.clients import meta as meta_client
 from framelab.clients import sam as sam_client
 from framelab.config import Settings
 from framelab.physics.experiments import REGISTRY
-from framelab.pipeline import analysis_auto, measure, segment
+from framelab.pipeline import analysis_auto, measure, outputs, segment
 from framelab.pipeline import ingest as ingest_mod
 from framelab.pipeline import transcribe as transcribe_stage
 from framelab.pipeline.context import RunContext
@@ -140,6 +140,8 @@ async def execute_run(
                 ing = ingest_mod.make_analysis_clip(
                     ctx.run_dir, ing, spec.analysis_window_s, max_s=settings.max_analysis_s
                 )
+                # the clip offset is needed to read masks back in the overlay and in replays
+                write_json_atomic(ctx.run_dir / "ingest" / "ingest.json", ing)
         if stopped:
             # 06 §2: unknown experiment or low confidence ends the run before measurement.
             ctx.emit("warning", message="Planner could not identify the experiment; re-record")
@@ -198,7 +200,9 @@ async def execute_run(
             ctx.finish(review.status, review.headline, partial=True)
             return ctx.state
         with ctx.stage(Stage.RENDERING):
-            await _translate(ctx, review)  # the second-language draft; PDFs arrive in M8
+            await _translate(ctx, review)
+            rendered = await asyncio.to_thread(outputs.render_outputs, ctx.run_dir)
+            _register_outputs(ctx, rendered)
         if _reached(Stage.RENDERING, until):
             ctx.finish(review.status, review.headline, partial=True)
             return ctx.state
@@ -291,6 +295,16 @@ def _slowmo_hint(ctx: RunContext, gates: list[GateResult]) -> None:
             path = ctx.run_dir / "analysis" / "rerun.json"
             write_json_atomic(path, {"capture_fps": fps, "diagnosis": gate.diagnosis})
             ctx.emit("warning", message=gate.message_en)
+
+
+def _register_outputs(ctx: RunContext, rendered: outputs.RenderResult) -> None:
+    """Artifacts for the rendered files, and a warning for each output that failed."""
+    mimes = {".pdf": "application/pdf", ".png": "image/png", ".mp4": "video/mp4",
+             ".json": "application/json", ".csv": "text/csv"}  # fmt: skip
+    for name, path in sorted(rendered.paths.items()):
+        ctx.add_artifact(name, path, mimes.get(path.suffix, "application/octet-stream"))
+    for message in rendered.warnings:
+        ctx.emit("warning", message=message)
 
 
 async def _translate(ctx: RunContext, review: Review) -> None:
