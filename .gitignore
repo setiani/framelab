@@ -28,3 +28,7 @@ web/dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Docs
+docs/
+docs
