@@ -1,20 +1,37 @@
 """Orchestrator: executes the stages in order (docs/plan/04-pipeline-and-measurement.md §1).
 
-Implemented so far (M2–M4): INGESTING → [TRANSCRIBING: M5] → PLANNING (manual spec until M5)
-→ SEGMENTING → MEASURING → ANALYZING (deterministic free fall + pendulum). Later stages raise
-until their milestone lands.
+Implemented so far (M2–M5): INGESTING → TRANSCRIBING → PLANNING → SEGMENTING → MEASURING →
+ANALYZING (deterministic free fall + pendulum). Later stages raise until their milestone lands.
+
+Spec source: the Planner (default; Voice and Spark calls), or ``spec_override`` with
+``--no-planner`` (flags only, no API calls for transcript or spec). ``overrides`` are typed flags
+applied on top of the Planner's spec.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from typing import Any
 
+from framelab.agent import planner
+from framelab.agent.ledger import Ledger
+from framelab.clients import meta as meta_client
+from framelab.clients import sam as sam_client
 from framelab.config import Settings
 from framelab.pipeline import analysis_auto, measure, segment
 from framelab.pipeline import ingest as ingest_mod
+from framelab.pipeline import transcribe as transcribe_stage
 from framelab.pipeline.context import RunContext
-from framelab.schemas import ExperimentSpec, IngestResult, Observation, RunState, Stage
+from framelab.schemas import (
+    ExperimentSpec,
+    IngestResult,
+    Observation,
+    RunState,
+    Stage,
+    Transcript,
+)
 from framelab.store import write_json_atomic
 
 ORDER = [
@@ -39,10 +56,12 @@ async def execute_run(
     settings: Settings,
     *,
     spec_override: ExperimentSpec | None = None,
+    overrides: dict[str, Any] | None = None,
     until: Stage | None = None,
 ) -> RunState:
     """Run the pipeline. Never raises: failures end in FAILED with error.json written."""
     ctx = RunContext.load(run_id, settings)
+    upload: asyncio.Task[str] | None = None
     try:
         with ctx.stage(Stage.INGESTING):
             ing = ingest_mod.run(
@@ -55,24 +74,67 @@ async def execute_run(
             ctx.finish(None, partial=True)
             return ctx.state
 
+        transcript = Transcript()
         with ctx.stage(Stage.TRANSCRIBING):
-            ctx.emit("warning", message="Transcription not implemented until M5; skipped")
+            if spec_override is None:
+                # The Planner needs the video's own audio (with sound) and the transcript.
+                # The upload runs while Voice transcribes (04 §1).
+                planner_video = ctx.run_dir / (ing.video_with_audio_path or ing.video_path)
+                upload = asyncio.create_task(sam_client.upload_video(planner_video, ctx.emit))
+                audio = ctx.run_dir / ing.audio_path if ing.audio_path else None
+                transcript = await transcribe_stage.run(audio, emit=ctx.emit)
+                write_json_atomic(ctx.run_dir / "transcript.json", transcript)
+                ctx.add_artifact("transcript", ctx.run_dir / "transcript.json", "application/json")
+            else:
+                ctx.emit("progress", message="Transcript skipped: manual spec (--no-planner)")
 
         with ctx.stage(Stage.PLANNING):
-            if spec_override is None:
-                raise NotImplementedError(
-                    "Planner arrives in M5. For now pass --concept (and --ref-concept) "
-                    "to `framelab run`."
-                )
-            spec = spec_override
-            duration = ing.n_frames / ing.file_fps
-            t0, t1 = spec.analysis_window_s
-            spec = spec.model_copy(update={"analysis_window_s": (max(0.0, t0), min(duration, t1))})
+            if spec_override is not None:
+                spec = spec_override
+            else:
+                ledger = Ledger(ctx.run_dir / "analysis" / "ledger.jsonl")
+                file_id = await upload
+                try:
+                    spec = await planner.run(
+                        file_id,
+                        transcript,
+                        ing.probe,
+                        ctx.state.lang,
+                        ctx.state.note,
+                        emit=ctx.emit,
+                        ledger=ledger,
+                    )
+                finally:
+                    await meta_client.delete_file(file_id, emit=ctx.emit)  # V10: no expiry
+                spec = planner.apply_overrides(spec, overrides or {})
             write_json_atomic(ctx.run_dir / "spec.json", spec)
+            ctx.add_artifact("spec", ctx.run_dir / "spec.json", "application/json")
             ctx.state.experiment = spec.experiment
-            ing = ingest_mod.make_analysis_clip(
-                ctx.run_dir, ing, spec.analysis_window_s, max_s=settings.max_analysis_s
-            )
+            stopped = planner.needs_rerecord(spec)
+            if not stopped:
+                if spec.experiment not in ("free_fall", "pendulum"):
+                    raise NotImplementedError(
+                        f"Experiment {spec.experiment!r} is not supported yet (stretch S-1)"
+                    )
+                duration = ing.n_frames / ing.file_fps
+                t0, t1 = spec.analysis_window_s
+                if t1 - t0 > settings.max_analysis_s:
+                    ctx.emit(
+                        "warning",
+                        message=f"Analysis window {t1 - t0:.1f} s clipped to "
+                        f"{settings.max_analysis_s:.0f} s",
+                    )
+                spec = spec.model_copy(
+                    update={"analysis_window_s": (max(0.0, t0), min(duration, t1))}
+                )
+                ing = ingest_mod.make_analysis_clip(
+                    ctx.run_dir, ing, spec.analysis_window_s, max_s=settings.max_analysis_s
+                )
+        if stopped:
+            # 06 §2: unknown experiment or low confidence ends the run before measurement.
+            ctx.emit("warning", message="Planner could not identify the experiment; re-record")
+            ctx.finish("NEEDS_RERECORD")
+            return ctx.state
         if _reached(Stage.PLANNING, until):
             ctx.finish(None, partial=True)
             return ctx.state

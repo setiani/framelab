@@ -27,7 +27,7 @@ def _run(tmp_path, *extra: str):
     runs = tmp_path / "runs"
     result = CliRunner().invoke(
         cli_app,
-        ["run", str(MEDIA / "pendulum_60fps_12s.mp4"), "--experiment", "pendulum",
+        ["run", str(MEDIA / "pendulum_60fps_12s.mp4"), "--no-planner", "--experiment", "pendulum",
          "--concept", "red ball", "--runs-dir", str(runs), *extra],
     )  # fmt: skip
     assert result.exit_code == 0, result.output

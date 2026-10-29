@@ -22,9 +22,11 @@ def test_cli_version() -> None:
     assert __version__ in result.output
 
 
-def test_cli_run_requires_concept_until_planner(tmp_path) -> None:
+def test_cli_no_planner_requires_concept(tmp_path) -> None:
     video = tmp_path / "v.mp4"
     video.write_bytes(b"\x00")
-    result = CliRunner().invoke(cli_app, ["run", str(video), "--runs-dir", str(tmp_path / "runs")])
+    result = CliRunner().invoke(
+        cli_app, ["run", str(video), "--no-planner", "--runs-dir", str(tmp_path / "runs")]
+    )
     assert result.exit_code == 2
     assert "--concept" in result.output

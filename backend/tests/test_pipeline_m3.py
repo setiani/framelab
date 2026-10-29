@@ -45,7 +45,7 @@ def test_cli_run_reports_g_and_writes_evidence(tmp_path, monkeypatch) -> None:
     runs = tmp_path / "runs"
     result = CliRunner().invoke(
         cli_app,
-        ["run", str(MEDIA / "freefall_60fps_5s.mp4"), "--concept", "orange ball",
+        ["run", str(MEDIA / "freefall_60fps_5s.mp4"), "--no-planner", "--concept", "orange ball",
          "--ref-concept", "ruler", "--ref-length-m", "1.0", "--ball-diameter-m", "0.10",
          "--runs-dir", str(runs)],
     )  # fmt: skip
@@ -77,6 +77,7 @@ def test_no_scale_reference_fails_with_clear_message(tmp_path, monkeypatch) -> N
         [
             "run",
             str(MEDIA / "freefall_60fps_5s.mp4"),
+            "--no-planner",
             "--concept",
             "orange ball",
             "--runs-dir",

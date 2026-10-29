@@ -142,55 +142,68 @@ EXPERIMENT_AXIS = {"free_fall": "y", "pendulum": "x", "melting": "xy"}
 UNTIL_CHOICES = ("ingesting", "planning", "segmenting", "measuring", "analyzing")
 
 
-def manual_spec(
-    experiment: str,
-    concept: str,
+def flag_fields(
+    *,
+    experiment: str | None,
+    concept: str | None,
     alt_concepts: list[str],
     ref_concept: str | None,
     ref_length_m: float | None,
     ref_frame_s: float | None,
     window: str | None,
-    lang: str,
-    ball_diameter_m: float | None = None,
-    string_length_m: float | None = None,
-    predict: str | None = None,
-):
-    """Temporary ExperimentSpec from CLI flags until the Planner exists (M5)."""
-    from framelab.schemas import ExperimentSpec, Quantity, ReferenceObject
+    ball_diameter_m: float | None,
+    string_length_m: float | None,
+    predict: str | None,
+) -> dict:
+    """ExperimentSpec fields for the flags the user actually gave (no defaults).
 
-    if window:
-        t0, t1 = (float(v) for v in window.split(","))
-    else:
-        t0, t1 = 0.0, 1e9  # clamped to the video length after ingest
-    reference = (
-        ReferenceObject(
+    Without ``--no-planner`` these override the Planner's spec. With it they make the spec.
+    """
+    from framelab.schemas import Quantity, ReferenceObject
+
+    fields: dict = {}
+    if experiment:
+        fields["experiment"] = experiment
+        fields["motion_axis"] = EXPERIMENT_AXIS.get(experiment, "xy")
+    if concept:
+        fields["target_concept"] = concept
+    if alt_concepts:
+        fields["target_alt_concepts"] = alt_concepts
+    if ref_concept:
+        fields["reference"] = ReferenceObject(
             concept=ref_concept,
             length_m=ref_length_m,
             length_source="spoken" if ref_length_m else "unknown",
             frame_hint_s=ref_frame_s,
         )
-        if ref_concept
-        else None
-    )
-    spoken = {}
+    if window:
+        t0, t1 = (float(v) for v in window.split(","))
+        fields["analysis_window_s"] = (t0, t1)
+    if ball_diameter_m:
+        fields["object_diameter_m"] = ball_diameter_m
     if string_length_m:
-        spoken["string_length"] = Quantity(value=string_length_m, unit="m")
-    prediction = parse_quantity(predict) if predict else None
-    return ExperimentSpec(
-        experiment=experiment,  # type: ignore[arg-type]
-        target_concept=concept,
-        spoken_params=spoken,  # type: ignore[arg-type]
-        hypothesis=f"Prediction: {predict}" if predict else None,
-        hypothesis_prediction=prediction,
-        target_alt_concepts=alt_concepts,
-        reference=reference,
-        object_diameter_m=ball_diameter_m,
-        analysis_window_s=(t0, t1),
-        motion_axis=EXPERIMENT_AXIS.get(experiment, "xy"),  # type: ignore[arg-type]
+        fields["spoken_params"] = {"string_length": Quantity(value=string_length_m, unit="m")}
+    if predict:
+        fields["hypothesis"] = f"Prediction: {predict}"
+        fields["hypothesis_prediction"] = parse_quantity(predict)
+    return fields
+
+
+def manual_spec(lang: str, fields: dict):
+    """Spec for ``--no-planner``: the flags on top of safe defaults (no Voice or Spark calls)."""
+    from framelab.agent.planner import apply_overrides
+    from framelab.schemas import ExperimentSpec
+
+    base = ExperimentSpec(
+        experiment="free_fall",
+        target_concept="",
+        analysis_window_s=(0.0, 1e9),  # clamped to the video length after ingest
+        motion_axis="y",
         language=lang,  # type: ignore[arg-type]
-        setup_description="Manual spec from CLI flags (Planner arrives in M5).",
+        setup_description="Manual spec from CLI flags (--no-planner).",
         confidence=1.0,
     )
+    return apply_overrides(base, fields)
 
 
 def parse_quantity(text: str):
@@ -248,7 +261,10 @@ def print_headline(h: dict) -> None:
 def run(
     video: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Input video")],
     concept: Annotated[
-        str | None, typer.Option(help="SAM noun phrase for the moving object (required until M5)")
+        str | None,
+        typer.Option(
+            help="SAM noun phrase for the moving object (override; required with --no-planner)"
+        ),
     ] = None,
     alt_concept: Annotated[
         list[str] | None, typer.Option("--alt-concept", help="Fallback noun phrase (repeat)")
@@ -273,7 +289,17 @@ def run(
     predict: Annotated[
         str | None, typer.Option(help="Hypothesis prediction, e.g. '1.5 s' or '9.8 m/s^2'")
     ] = None,
-    experiment: Annotated[str, typer.Option(help="free_fall | pendulum")] = "free_fall",
+    experiment: Annotated[
+        str | None,
+        typer.Option(help="free_fall | pendulum (default: the Planner decides)"),
+    ] = None,
+    no_planner: Annotated[
+        bool,
+        typer.Option(
+            "--no-planner",
+            help="Skip Voice and Spark: the spec comes from the flags only (needs --concept).",
+        ),
+    ] = False,
     lang: Annotated[str, typer.Option(help="Report language: id | en")] = "id",
     capture_fps: Annotated[int | None, typer.Option(help="Real capture fps for slow-mo")] = None,
     until: Annotated[
@@ -281,10 +307,11 @@ def run(
     ] = "analyzing",
     runs_dir: Annotated[Path | None, typer.Option(help="Runs folder (default: settings)")] = None,
 ) -> None:
-    """Run the pipeline: ingest → SAM → observations → analysis (stops at --until).
+    """Run the pipeline: ingest → transcript → Planner → SAM → observations → analysis.
 
-    Until the Planner (M5) and agents (M6) land, the spec comes from flags and the analysis is
-    deterministic (no LLM)."""
+    The Planner (Muse Voice + Muse Spark) reads the video and the speech and proposes the
+    experiment spec. Flags override its fields. ``--no-planner`` uses the flags only, for offline
+    runs and replays. Analysis stays deterministic until the agents land (M6)."""
     import asyncio
 
     from framelab.pipeline.run import execute_run
@@ -293,29 +320,37 @@ def run(
 
     if until not in UNTIL_CHOICES:
         raise typer.BadParameter(f"--until must be one of {UNTIL_CHOICES}")
-    if not concept:
-        raise typer.BadParameter("--concept is required until the Planner lands (M5)")
-    if experiment not in ("free_fall", "pendulum"):
+    if no_planner and not concept:
+        raise typer.BadParameter("--concept is required with --no-planner")
+    if experiment and experiment not in ("free_fall", "pendulum"):
         raise typer.BadParameter("--experiment must be free_fall or pendulum")
     settings = Settings(runs_dir=runs_dir) if runs_dir else Settings()
     store = RunStore(settings.runs_dir)
     state = store.create_run(video.name, lang=lang, capture_fps=capture_fps)  # type: ignore[arg-type]
     shutil.copyfile(video, store.input_video_path(state.run_id))
-    spec = manual_spec(
-        experiment,
-        concept,
-        alt_concept or [],
-        ref_concept,
-        ref_length_m,
-        ref_frame_s,
-        window,
-        lang,
-        ball_diameter_m,
-        string_length_m,
-        predict,
+    fields = flag_fields(
+        experiment=experiment,
+        concept=concept,
+        alt_concepts=alt_concept or [],
+        ref_concept=ref_concept,
+        ref_length_m=ref_length_m,
+        ref_frame_s=ref_frame_s,
+        window=window,
+        ball_diameter_m=ball_diameter_m,
+        string_length_m=string_length_m,
+        predict=predict,
     )
     typer.echo(f"Run {state.run_id} → {store.run_dir(state.run_id)}")
-    final = asyncio.run(execute_run(state.run_id, settings, spec_override=spec, until=Stage(until)))
+    if no_planner:
+        run = execute_run(
+            state.run_id,
+            settings,
+            spec_override=manual_spec(lang, fields),
+            until=Stage(until),
+        )
+    else:
+        run = execute_run(state.run_id, settings, overrides=fields, until=Stage(until))
+    final = asyncio.run(run)
     run_dir = store.run_dir(state.run_id)
     if final.stage == Stage.FAILED:
         typer.secho(f"FAILED: {final.error}", fg=typer.colors.RED)
@@ -324,6 +359,8 @@ def run(
     typer.secho(
         f"Stopped after {final.stage.value}. Cost ≈ ${final.cost_usd:.4f}", fg=typer.colors.GREEN
     )
+    if final.verdict:
+        typer.secho(f"Verdict: {final.verdict}", fg=typer.colors.YELLOW)
     if final.headline:
         print_headline(final.headline)
     for name, rel in final.artifacts.items():

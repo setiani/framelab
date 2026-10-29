@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # --- Meta Model API -----------------------------------------------------------------------
@@ -54,6 +55,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     live_tests: bool = False
     record_dir: Path | None = None
+
+    @field_validator("record_dir", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """An empty ``FRAMELAB_RECORD_DIR=`` in .env means off, not the working directory."""
+        return None if value in ("", None) else value
 
     @property
     def model_api_key(self) -> str | None:

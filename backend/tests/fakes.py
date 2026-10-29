@@ -7,15 +7,56 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from framelab.clients import meta as meta_client
 from framelab.clients import sam as sam_client
+from framelab.clients import voice as voice_client
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAM_FIXTURES = FIXTURES / "sam"
 MEDIA = FIXTURES / "media"
+
+
+class FakeResponses:
+    """Scripted Responses API (Spark): each call returns the next output text and is recorded."""
+
+    def __init__(self, outputs: list[str]) -> None:
+        self.outputs = list(outputs)
+        self.calls: list[dict[str, Any]] = []
+
+    async def __call__(self, *, model: str, purpose: str, emit=None, **kw: Any):
+        self.calls.append({"model": model, "purpose": purpose, **kw})
+        if not self.outputs:
+            raise AssertionError("FakeResponses: no scripted output left")
+        text = self.outputs.pop(0)
+        return SimpleNamespace(id=f"resp_fake_{len(self.calls)}", output_text=text, usage=None)
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> FakeResponses:
+        monkeypatch.setattr(meta_client, "responses", self)
+        return self
+
+
+class FakeVoice:
+    """Voice Transcribe returning a stored response body (or raising, if given an exception)."""
+
+    def __init__(self, body: dict[str, Any] | None = None, error: Exception | None = None):
+        self.body = body or {}
+        self.error = error
+        self.calls: list[str] = []
+
+    async def transcribe(self, path: Path, **kw: Any) -> dict[str, Any]:
+        self.calls.append(path.name)
+        if self.error is not None:
+            raise self.error
+        return self.body
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> FakeVoice:
+        monkeypatch.setattr(voice_client, "transcribe", self.transcribe)
+        return self
 
 
 class FakeSam:
@@ -26,10 +67,12 @@ class FakeSam:
         self.image = image
         self.calls: list[tuple[str, str]] = []
         self.deleted: list[str] = []
+        self.uploads = 0
 
     async def upload_video(self, path: Path, emit=None) -> str:
         self.calls.append(("upload", path.name))
-        return "file-fake-1"
+        self.uploads += 1
+        return f"file-fake-{self.uploads}"  # unique, so tests can tell uploads apart
 
     async def _replay(
         self, fixture: str | None, concept: str, media: str, record_path: Path, frame_index=None

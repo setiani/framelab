@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from framelab.cli import app as cli_app
-from framelab.cli import manual_spec
+from framelab.cli import flag_fields, manual_spec
 from framelab.config import Settings
 from framelab.events import EventBus
 from framelab.pipeline.run import execute_run
@@ -22,7 +22,19 @@ pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg r
 
 
 def spec():
-    return manual_spec("free_fall", "orange ball", [], "ruler", 1.0, None, None, "id")
+    fields = flag_fields(
+        experiment="free_fall",
+        concept="orange ball",
+        alt_concepts=[],
+        ref_concept="ruler",
+        ref_length_m=1.0,
+        ref_frame_s=None,
+        window=None,
+        ball_diameter_m=None,
+        string_length_m=None,
+        predict=None,
+    )
+    return manual_spec("id", fields)
 
 
 async def test_execute_run_until_measuring(tmp_path, monkeypatch) -> None:
@@ -69,7 +81,7 @@ def test_cli_run_m2(tmp_path, monkeypatch) -> None:
     shutil.copyfile(MEDIA / "freefall_60fps_5s.mp4", video)
     result = CliRunner().invoke(
         cli_app,
-        ["run", str(video), "--concept", "orange ball", "--ref-concept", "ruler",
+        ["run", str(video), "--no-planner", "--concept", "orange ball", "--ref-concept", "ruler",
          "--ref-length-m", "1.0", "--until", "measuring", "--runs-dir", str(tmp_path / "runs")],
     )  # fmt: skip
     assert result.exit_code == 0, result.output

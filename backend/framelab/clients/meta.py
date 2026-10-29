@@ -21,6 +21,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
+import httpx
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI, OpenAI
 from pydantic import BaseModel
 
@@ -73,8 +74,10 @@ def async_client(timeout: float = 180.0) -> AsyncOpenAI:
 
 
 def is_retryable(exc: BaseException) -> bool:
-    if isinstance(exc, APIConnectionError | APITimeoutError):
+    if isinstance(exc, APIConnectionError | APITimeoutError | httpx.TransportError):
         return True
+    if isinstance(exc, MetaClientError):  # raw httpx clients (Voice) raise this on non-2xx
+        return exc.status in RETRY_STATUS
     status = getattr(exc, "status_code", None)
     return status in RETRY_STATUS
 
