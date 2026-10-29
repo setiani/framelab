@@ -124,15 +124,25 @@ def analyze_free_fall(
     is_vfr: bool = False,
     g_ref: float = G_REF_DEFAULT,
     seed: int = 1234,
+    window: tuple[int, int] | None = None,
 ) -> FreeFallAnalysis:
-    """Analyse valid track points (t in s, y in px, image y down) of one free fall."""
+    """Analyse valid track points (t in s, y in px, image y down) of one free fall.
+
+    ``window`` (inclusive indices, already trimmed) skips the automatic detection. The Analyst
+    passes the window it chose with ``set_fit_window`` (agent/tools.py), which trims the same way.
+    """
     t = np.asarray(t, dtype=float)
     y = np.asarray(y_px, dtype=float)
-    win = freefall_window(t, y)
-    warnings = list(win.warnings)
-    start, end = trim_contact_points(t, y, win.start, win.end)
-    if (start, end) != (win.start, win.end):
-        warnings.append(f"trimmed_contact_points:{start - win.start}+{win.end - end}")
+    if window is None:
+        win = freefall_window(t, y)
+        warnings = list(win.warnings)
+        start, end = trim_contact_points(t, y, win.start, win.end)
+        if (start, end) != (win.start, win.end):
+            warnings.append(f"trimmed_contact_points:{start - win.start}+{win.end - end}")
+    else:
+        start, end = window
+        win = Window(start=start, end=end, release_index=None, impact_index=None, v_max_px_s=0.0)
+        warnings = []
     tf, yf = t[start : end + 1], y[start : end + 1]
     fit = fit_quadratic(tf, yf)
 

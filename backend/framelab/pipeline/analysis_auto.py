@@ -103,6 +103,8 @@ def calibrate_run(
                 "m_per_px": est.m_per_px,
                 "sigma": est.sigma_m_per_px,
                 "rel_sigma": est.sigma_m_per_px / est.m_per_px,
+                "value": est.m_per_px * 1000.0,  # claims copy {value} in mm/px (06 §4)
+                "unit": "mm/px",
                 "details": est.details,
             },
             f"{est.method} scale {est.m_per_px * 1000:.4f} mm/px "

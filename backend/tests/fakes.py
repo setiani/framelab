@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -134,3 +135,46 @@ def pendulum_fake() -> FakeSam:
         video={"red ball": "pendulum_60fps_12s_red_ball.sam.json.gz"},
         image={"ruler": "keyframe_000_ruler.sam.json.gz", "string": "pendulum_string.sam.json.gz"},
     )
+
+
+def _reply(text: str | None, calls: list[Any]) -> Any:
+    message = SimpleNamespace(content=text, tool_calls=calls or None, model_extra={})
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+class FakeChat:
+    """Scripted Chat Completions for the Analyst (06 §3.1).
+
+    A step is a list of ``(tool_name, args)`` calls (several = parallel calls in one turn), a text
+    reply, an exception to raise, or a callable taking the messages and returning one of these.
+    Every request is recorded, so tests can check what the model saw.
+    """
+
+    def __init__(self, steps: list[Any]) -> None:
+        self.steps = list(steps)
+        self.calls: list[dict[str, Any]] = []
+
+    async def __call__(
+        self, *, model: str, messages: list[dict[str, Any]], purpose: str, emit=None, **kw: Any
+    ) -> Any:
+        self.calls.append({"model": model, "purpose": purpose,
+                           "messages": [dict(m) for m in messages], **kw})  # fmt: skip
+        if not self.steps:
+            raise AssertionError("FakeChat: no scripted step left")
+        step = self.steps.pop(0)
+        if callable(step):
+            step = step(messages)
+        if isinstance(step, Exception):
+            raise step
+        if isinstance(step, str):
+            return _reply(step, [])
+        calls = [
+            SimpleNamespace(id=f"call_{len(self.calls)}_{i}",
+                            function=SimpleNamespace(name=name, arguments=json.dumps(args)))
+            for i, (name, args) in enumerate(step)
+        ]  # fmt: skip
+        return _reply(None, calls)
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> FakeChat:
+        monkeypatch.setattr(meta_client, "chat", self)
+        return self

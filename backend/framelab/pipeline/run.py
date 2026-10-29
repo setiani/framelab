@@ -1,7 +1,8 @@
 """Orchestrator: executes the stages in order (docs/plan/04-pipeline-and-measurement.md §1).
 
 Implemented so far (M2–M5): INGESTING → TRANSCRIBING → PLANNING → SEGMENTING → MEASURING →
-ANALYZING (deterministic free fall + pendulum). Later stages raise until their milestone lands.
+ANALYZING: free fall by the Analyst agent (M6, deterministic fallback); pendulum and --no-planner
+deterministic (M3). Later stages raise until their milestone lands.
 
 Spec source: the Planner (default; Voice and Spark calls), or ``spec_override`` with
 ``--no-planner`` (flags only, no API calls for transcript or spec). ``overrides`` are typed flags
@@ -15,7 +16,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from framelab.agent import planner
+from framelab.agent import analyst, planner
+from framelab.agent import session as session_mod
 from framelab.agent.ledger import Ledger
 from framelab.clients import meta as meta_client
 from framelab.clients import sam as sam_client
@@ -165,15 +167,34 @@ async def execute_run(
             ctx.finish(None, partial=True)
             return ctx.state
 
+        rerecord = False
         with ctx.stage(Stage.ANALYZING):
-            # M3: deterministic analysis (no agents). From M6 the Analyst agent drives the same
-            # tools, and this path remains the fallback of 06 §3.4.
-            headline = analysis_auto.run(ctx, spec, ing, seg, observations, summary)
+            if spec_override is None and spec.experiment == "free_fall":
+                # M6: the Analyst drives the tools; the deterministic path is its fallback (06 §3.4)
+                session = session_mod.prepare(ctx, spec, ing, seg, observations, summary)
+                outcome = await analyst.run(session)
+                if outcome.fallback:
+                    headline = ctx.state.headline
+                else:
+                    headline = session.headline()
+                    ctx.state.headline = headline
+                rerecord = outcome.kind == "rerecord"
+                for name, rel in (("ledger", "analysis/ledger.jsonl"),
+                                  ("draft_report", "draft_report.json")):  # fmt: skip
+                    if (ctx.run_dir / rel).is_file():
+                        ctx.add_artifact(name, ctx.run_dir / rel, "application/json")
+            else:
+                # M3: deterministic analysis: --no-planner (no LLM) and pendulum (agent in M6.1)
+                headline = analysis_auto.run(ctx, spec, ing, seg, observations, summary)
+        if rerecord:
+            # Without the Auditor (M7) an Analyst request for re-recording is final.
+            ctx.finish("NEEDS_RERECORD")
+            return ctx.state
         if _reached(Stage.ANALYZING, until):
             ctx.finish(None, headline, partial=True)
             return ctx.state
 
-        raise NotImplementedError("Stages after ANALYZING arrive in M6–M8.")
+        raise NotImplementedError("Stages after ANALYZING arrive in M7–M8.")
     except Exception as exc:  # noqa: BLE001
         ctx.fail(exc)
     return ctx.state

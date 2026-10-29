@@ -1,7 +1,7 @@
 """Claim Ledger: evidence (from tools/pipeline code) and claims (values copied by code).
 
 Spec: docs/plan/06-agents-and-verification.md §1, §4; docs/plan/03-data-contracts.md §6.
-Status: evidence implemented (M3); claims arrive with the Analyst tools (M6).
+Status: evidence (M3) and claims with copied values (M6).
 
 ``analysis/ledger.jsonl`` is append-only. Evidence ids are ``<prefix>_<NN>`` (``fit_01``);
 claim ids are ``cNN``. Numbers in evidence are produced ONLY by deterministic code.
@@ -13,11 +13,12 @@ import json
 import re
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import numpy as np
 
-from framelab.schemas import Claim, Evidence
+from framelab.agent.narrative import statement_errors
+from framelab.schemas import Claim, ClaimType, Evidence
 
 EVIDENCE_PREFIXES = ("seg", "trk", "cal", "win", "fit", "ci", "der", "gate", "fig", "cmp", "spk")
 _ID_RE = re.compile(r"^(?P<prefix>[a-z]+)_(?P<num>\d+)$|^c(?P<claim>\d+)$")
@@ -115,6 +116,12 @@ class Ledger:
             self._append(json.loads(ev.model_dump_json()))
         return ev
 
+    def get_claim(self, claim_id: str) -> Claim:
+        for claim in self.claims():
+            if claim.id == claim_id:
+                return claim
+        raise KeyError(claim_id)
+
     def add_claim(
         self,
         claim_type: str,
@@ -123,5 +130,50 @@ class Ledger:
         statement_id: str,
         quantity: str | None = None,
     ) -> Claim:
-        """Create a claim whose value/ci/unit are COPIED from the evidence record (M6)."""
-        raise NotImplementedError("Milestone M6: see docs/plan/09-milestones-and-tasks.md")
+        """Create a claim whose value, CI and unit are COPIED from the evidence (06 §4).
+
+        The statements are templates: ``{value}``, ``{ci}``, ``{unit}``, ``{outcome}`` and
+        ``{rel_diff}`` are filled at render time. Any other digit is rejected here, so a number can
+        only enter a claim through the evidence.
+        """
+        if claim_type not in get_args(ClaimType):
+            raise ValueError(f"unknown claim_type {claim_type!r}")
+        for text in (statement_en, statement_id):
+            errors = statement_errors(text)
+            if errors:
+                raise ValueError("; ".join(errors))
+        with self._lock:
+            try:
+                source = self.get(evidence_id)
+            except KeyError:
+                raise KeyError(f"unknown evidence {evidence_id!r}") from None
+            value, ci95, unit = copy_numbers(source)
+            claim = Claim(
+                id=self.next_id("c"),
+                claim_type=claim_type,  # type: ignore[arg-type]
+                quantity=quantity,
+                value=value,
+                ci95=ci95,
+                unit=unit,
+                evidence=[evidence_id],
+                statement_en=statement_en,
+                statement_id=statement_id,
+            )
+            self._append(json.loads(claim.model_dump_json()))
+        return claim
+
+
+def copy_numbers(ev: Evidence) -> tuple[float | None, tuple[float, float] | None, str | None]:
+    """The value, 95 % interval and unit a claim takes from an evidence record."""
+    data = ev.data
+    raw_value = data.get(
+        "value", data.get("m")
+    )  # cmp_ hypothesis_test keeps the measured value as m
+    value = float(raw_value) if isinstance(raw_value, int | float) else None
+    ci: tuple[float, float] | None = None
+    if data.get("ci95") is not None:
+        ci = (float(data["ci95"][0]), float(data["ci95"][1]))
+    elif data.get("lo") is not None and data.get("hi") is not None:
+        ci = (float(data["lo"]), float(data["hi"]))
+    unit = data.get("unit")
+    return value, ci, str(unit) if unit is not None else None

@@ -8,12 +8,22 @@ import shutil
 import pytest
 from typer.testing import CliRunner
 
-from framelab.agent import planner
+from framelab.agent import analyst, planner
 from framelab.cli import app as cli_app
 from framelab.schemas import ExperimentSpec, ReferenceObject
 from tests.fakes import MEDIA, freefall_fake
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg required")
+
+
+@pytest.fixture(autouse=True)
+def no_analyst(monkeypatch):
+    """The Analyst is replaced by its deterministic fallback: these M5 tests make no chat calls."""
+
+    async def fallback_only(session):
+        return analyst.fallback(session, steps=0)
+
+    monkeypatch.setattr(analyst, "run", fallback_only)
 
 
 def planner_spec(**changes) -> ExperimentSpec:
