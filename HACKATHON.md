@@ -22,6 +22,8 @@ building period.** No pre-existing code was used.
 
 | 2026-10-29 (night) | M8: charts (Plotly JSON, 1600×900 matplotlib PNG, series T₀² vs L), overlay video (mask contours, trail, HUD from fmt-formatted numbers, end card with the verdict), report HTML and A4 PDF in EN and ID (claims as phrases, appendices, data sample), recording-feedback page, `data.csv` in SI, and `framelab replay` offline. Live: replay on the PASS and trap runs, no model calls. |
 
+| 2026-10-29 (night) | M9: HTTP API (uploads with validation and a size limit, run detail, ledger, track, artifact allow-list, rerun, series), SSE with heartbeats and Last-Event-ID replay, runs as background tasks limited by concurrency, error format per 07 §1. Live: curl upload → PASS run (≈ $0.14), 123 events streamed and closed on done. |
+
 <!-- Add one row per day: milestone(s) finished, notable decisions, what changed. -->
 
 ## AI assistance
