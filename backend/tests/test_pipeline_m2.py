@@ -70,7 +70,7 @@ def test_cli_run_m2(tmp_path, monkeypatch) -> None:
     result = CliRunner().invoke(
         cli_app,
         ["run", str(video), "--concept", "orange ball", "--ref-concept", "ruler",
-         "--ref-length-m", "1.0", "--runs-dir", str(tmp_path / "runs")],
+         "--ref-length-m", "1.0", "--until", "measuring", "--runs-dir", str(tmp_path / "runs")],
     )  # fmt: skip
     assert result.exit_code == 0, result.output
     assert "Stopped after measuring" in result.output

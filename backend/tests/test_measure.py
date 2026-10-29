@@ -116,3 +116,45 @@ async def test_recorded_sam_matches_ground_truth() -> None:
     errors = [abs(o.cy_px - truth[o.frame_index]) for o in obs]
     assert len(obs) == 268 and np.mean(errors) < 1.0
     assert all(abs(o.cx_px - 470) < 1.5 for o in obs)
+
+
+def test_hampel_flags_spike_keeps_parabola() -> None:
+    t = np.arange(40) / 60
+    y = 80 + 0.5 * 4500 * t**2
+    d2 = np.diff(y, 2)
+    assert not measure.hampel(d2).any()
+    y_spike = y.copy()
+    y_spike[20] += 6
+    flags = measure.hampel(np.diff(y_spike, 2))
+    assert flags[19]  # d2 index 19 is centred on point 20
+
+
+def _obs_track(frames, y_of, area=1700.0):
+    out = []
+    for f in frames:
+        rec = disk_record(470, y_of(f), 23, frame=f)
+        o = measure.mask_to_observation(rec, "ball", f, f / 60)
+        out.append(o.model_copy(update={"area_px": area}))
+    return out
+
+
+def test_clean_track_flags_outliers_and_interpolates_short_gaps() -> None:
+    frames = [f for f in range(32, 60) if f not in (40, 41, 50, 51, 52)]
+    obs = _obs_track(frames, lambda f: 85 + 0.5 * 4512 * ((f - 31) / 60) ** 2)
+    bad = obs[10].model_copy(update={"cy_px": obs[10].cy_px + 8})
+    obs[10] = bad
+    tr = measure.clean_track(obs, effective_fps=60, concept="orange ball", object_id="0")
+    flags = {round(p.t * 60): p.flag for p in tr.points}
+    assert flags[40] == flags[41] == "interpolated"
+    assert flags[50] == flags[51] == flags[52] == "missing"  # gap of 3 > 2
+    assert flags[bad.frame_index] == "outlier"
+    assert tr.max_gap_frames == 3 and tr.n_interpolated == 2
+    t, _x, y = measure.valid_arrays(tr)
+    assert len(t) == len(frames) - 1
+
+
+def test_clean_track_area_outlier() -> None:
+    obs = _obs_track(range(32, 52), lambda f: 100 + 3 * (f - 32))
+    obs[8] = obs[8].model_copy(update={"area_px": 4000.0})  # merged with a hand
+    tr = measure.clean_track(obs, effective_fps=60, concept="ball", object_id="0")
+    assert [p.flag for p in tr.points].count("outlier") == 1

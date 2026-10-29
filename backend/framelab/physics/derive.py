@@ -1,7 +1,7 @@
 """Derived quantities: g from fits, amplitude correction, hypothesis test, series.
 
 Spec: docs/plan/05-physics-and-uncertainty.md §2–§4
-Status: skeleton (M0). Implement in milestone M3–M4.
+Status: free-fall parts implemented (M3); series regression in M4.
 """
 
 from __future__ import annotations
@@ -13,6 +13,18 @@ from typing import Any
 def g_from_quadratic(c2_px: float, m_per_px: float) -> float:
     """g = 2·c2·s (image y points down, so g > 0)."""
     return 2.0 * c2_px * m_per_px
+
+
+def compare_reference(value: float, lo: float, hi: float, ref: float) -> dict[str, Any]:
+    """Comparison with a reference value (diagnosis only; never used to alter data)."""
+    return {
+        "ref": ref,
+        "value": value,
+        "lo": lo,
+        "hi": hi,
+        "rel_diff_pct": (value - ref) / ref * 100.0,
+        "within_ci": lo <= ref <= hi,
+    }
 
 
 def amplitude_correction(period_s: float, theta_rad: float) -> float:

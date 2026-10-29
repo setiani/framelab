@@ -66,3 +66,42 @@ def test_series_roundtrip(store: RunStore) -> None:
     loaded = store.load_series(series.series_id)
     assert loaded.run_ids == ["r_1", "r_2"]
     assert loaded.status == "collecting"
+
+
+def test_atomic_write_retries_when_destination_is_briefly_locked(tmp_path, monkeypatch) -> None:
+    """Windows: Defender/indexer holding state.json open makes os.replace raise WinError 5."""
+    import os
+
+    from framelab import store
+
+    real_replace = os.replace
+    calls = {"n": 0}
+
+    def flaky_replace(src, dst):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise PermissionError(5, "Access is denied")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(store.os, "replace", flaky_replace)
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)
+    target = tmp_path / "state.json"
+    store.write_json_atomic(target, {"ok": True})
+    assert calls["n"] == 3
+    assert store.read_json(target) == {"ok": True}
+    assert not list(tmp_path.glob(".state.json.*.tmp"))
+
+
+def test_atomic_write_gives_up_and_cleans_temp(tmp_path, monkeypatch) -> None:
+    import pytest
+
+    from framelab import store
+
+    def always_locked(src, dst):
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(store.os, "replace", always_locked)
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)
+    with pytest.raises(PermissionError):
+        store.write_json_atomic(tmp_path / "state.json", {"ok": True})
+    assert not list(tmp_path.glob(".state.json.*.tmp"))

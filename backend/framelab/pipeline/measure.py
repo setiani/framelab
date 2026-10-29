@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 from meta_sam_parser import decode_mask_to_raster
 
-from framelab.schemas import ExperimentSpec, Observation, Track
+from framelab.schemas import ExperimentSpec, Observation, Track, TrackPoint
 
 MIN_MASK_PIXELS = 12
 OBS_FIELDS = list(Observation.model_fields)
@@ -227,11 +227,177 @@ def debug_centroids_png(
     return out_png
 
 
-def hampel(series: np.ndarray, window: int = 7, k: float = 3.5) -> np.ndarray:
-    """Boolean outlier mask using rolling median and MAD-scaled sigma (M3)."""
-    raise NotImplementedError("Milestone M3: see docs/plan/09-milestones-and-tasks.md")
+def hampel(
+    series: np.ndarray, window: int = 7, k: float = 3.5, *, peaks_only: bool = False
+) -> np.ndarray:
+    """Boolean outlier mask: |v − rolling median| > k · 1.4826 · MAD (NaN-safe).
+
+    The MAD is the smaller of the local and the global one (a spike next to a gap leaves few
+    clean values in its window, which would otherwise inflate the local MAD), with a small
+    floor so sub-pixel jitter (an object at rest) is never an outlier. ``peaks_only`` keeps a
+    flag only where the deviation is a local maximum: one position spike shows up in three
+    second differences (+s, −2s, +s) and only the centre one belongs to the bad point.
+    """
+    v = np.asarray(series, dtype=float)
+    n = v.size
+    half = window // 2
+    out = np.zeros(n, dtype=bool)
+    score = np.zeros(n)
+    if n == 0 or np.all(np.isnan(v)):
+        return out
+    global_mad = float(np.nanmedian(np.abs(v - np.nanmedian(v))))
+    floor = 0.15
+    for i in range(n):
+        if np.isnan(v[i]):
+            continue
+        seg = v[max(0, i - half) : i + half + 1]
+        seg = seg[~np.isnan(seg)]
+        if seg.size < 3:
+            continue
+        med = float(np.median(seg))
+        local_mad = float(np.median(np.abs(seg - med)))
+        mad = max(min(local_mad, global_mad), floor)
+        score[i] = abs(v[i] - med) / (1.4826 * mad)
+        out[i] = score[i] > k
+    if peaks_only:
+        left = np.concatenate([[0.0], score[:-1]])
+        right = np.concatenate([score[1:], [0.0]])
+        out &= (score >= left) & (score >= right)
+    return out
 
 
-def clean_track(observations: list[Observation], spec: ExperimentSpec, n_frames: int) -> Track:
-    """Grid, area/position outliers, gap interpolation (excluded from fits), metrics (M3)."""
-    raise NotImplementedError("Milestone M3: see docs/plan/09-milestones-and-tasks.md")
+def rolling_median(values: np.ndarray, window: int = 9) -> np.ndarray:
+    half = window // 2
+    return np.array(
+        [np.median(values[max(0, i - half) : i + half + 1]) for i in range(values.size)]
+    )
+
+
+def clean_track(
+    observations: list[Observation],
+    *,
+    effective_fps: float,
+    concept: str,
+    object_id: str,
+    max_interp_gap: int = 2,
+    id_switches: int = 0,
+) -> Track:
+    """Grid, area/position outliers, gap interpolation, metrics (04 §5.2).
+
+    Interpolated points are flagged ``valid=False``: they are drawn in the overlay but never
+    used in fits. The grid spans the first to the last observed frame of the object (SAM does
+    not report static frames before the motion starts, M1 V12).
+    """
+    obs = sorted((o for o in observations if o.object_id == object_id), key=lambda o: o.frame_index)
+    if not obs:
+        raise ValueError(f"no observations for object {object_id}")
+    first, last = obs[0].frame_index, obs[-1].frame_index
+    by_frame = {o.frame_index: o for o in obs}
+    frames = np.array(sorted(by_frame))
+    x = np.array([by_frame[f].cx_px for f in frames])
+    y = np.array([by_frame[f].cy_px for f in frames])
+    area = np.array([by_frame[f].area_px for f in frames])
+
+    outlier = np.zeros(frames.size, dtype=bool)
+    if frames.size >= 5:
+        med = rolling_median(area, 9)
+        outlier |= np.abs(area / np.maximum(med, 1e-9) - 1.0) > 0.5
+    if frames.size >= 7:
+        consecutive = (frames[2:] - frames[:-2]) == 2
+        for coord in (x, y):
+            d2 = np.where(consecutive, coord[2:] - 2 * coord[1:-1] + coord[:-2], np.nan)
+            flags = hampel(d2, window=7, k=3.5, peaks_only=True)
+            outlier[1:-1] |= flags
+
+    points: list[TrackPoint] = []
+    n_interp = 0
+    max_gap = 0
+    for idx, f in enumerate(frames):
+        if idx > 0:
+            prev = frames[idx - 1]
+            gap = int(f - prev - 1)
+            if gap > 0:
+                max_gap = max(max_gap, gap)
+                for g in range(1, gap + 1):
+                    missing_frame = prev + g
+                    if gap <= max_interp_gap:
+                        w = g / (gap + 1)
+                        points.append(
+                            TrackPoint(
+                                t=missing_frame / effective_fps,
+                                x_px=float(x[idx - 1] + w * (x[idx] - x[idx - 1])),
+                                y_px=float(y[idx - 1] + w * (y[idx] - y[idx - 1])),
+                                area_px=float(area[idx - 1] + w * (area[idx] - area[idx - 1])),
+                                valid=False,
+                                flag="interpolated",
+                            )
+                        )
+                        n_interp += 1
+                    else:
+                        points.append(
+                            TrackPoint(
+                                t=missing_frame / effective_fps,
+                                x_px=float("nan"),
+                                y_px=float("nan"),
+                                area_px=float("nan"),
+                                valid=False,
+                                flag="missing",
+                            )
+                        )
+        points.append(
+            TrackPoint(
+                t=f / effective_fps,
+                x_px=float(x[idx]),
+                y_px=float(y[idx]),
+                area_px=float(area[idx]),
+                valid=not bool(outlier[idx]),
+                flag="outlier" if outlier[idx] else "ok",
+            )
+        )
+    grid_len = last - first + 1
+    n_valid = sum(1 for p in points if p.valid)
+    return Track(
+        track_id=f"{_slug(concept)}_{object_id}",
+        concept=concept,
+        object_id=object_id,
+        fps=effective_fps,
+        points=points,
+        coverage=n_valid / grid_len,
+        n_outliers=int(outlier.sum()),
+        n_interpolated=n_interp,
+        max_gap_frames=max_gap,
+        id_switches_suspected=id_switches,
+    )
+
+
+def _slug(text: str) -> str:
+    return "_".join("".join(c if c.isalnum() else " " for c in text.lower()).split())
+
+
+def write_track_csv(path: Path, track: Track) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["frame", "t_s", "x_px", "y_px", "area_px", "valid", "flag"])
+        for p in track.points:
+            writer.writerow(
+                [
+                    round(p.t * track.fps),
+                    f"{p.t:.6f}",
+                    p.x_px,
+                    p.y_px,
+                    p.area_px,
+                    int(p.valid),
+                    p.flag,
+                ]
+            )
+
+
+def valid_arrays(track: Track) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(t, x_px, y_px) of the valid points only — the only data fits may use."""
+    pts = [p for p in track.points if p.valid]
+    return (
+        np.array([p.t for p in pts]),
+        np.array([p.x_px for p in pts]),
+        np.array([p.y_px for p in pts]),
+    )

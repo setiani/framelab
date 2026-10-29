@@ -10,8 +10,8 @@ import json
 from pathlib import Path
 
 from framelab.config import Settings
+from framelab.pipeline import analysis_auto, measure, segment
 from framelab.pipeline import ingest as ingest_mod
-from framelab.pipeline import measure, segment
 from framelab.pipeline.context import RunContext
 from framelab.schemas import ExperimentSpec, IngestResult, Observation, RunState, Stage
 from framelab.store import write_json_atomic
@@ -97,12 +97,20 @@ async def execute_run(
             return ctx.state
 
         with ctx.stage(Stage.MEASURING):
-            measure_observations(ctx, spec, ing, seg)
+            observations, summary = measure_observations(ctx, spec, ing, seg)
         if _reached(Stage.MEASURING, until):
             ctx.finish(None, partial=True)
             return ctx.state
 
-        raise NotImplementedError("Stages after MEASURING arrive in M3–M8.")
+        with ctx.stage(Stage.ANALYZING):
+            # M3: deterministic analysis (no agents). From M6 the Analyst agent drives the same
+            # tools, and this path remains the fallback of 06 §3.4.
+            headline = analysis_auto.run(ctx, spec, ing, seg, observations, summary)
+        if _reached(Stage.ANALYZING, until):
+            ctx.finish(None, headline, partial=True)
+            return ctx.state
+
+        raise NotImplementedError("Stages after ANALYZING arrive in M6–M8.")
     except Exception as exc:  # noqa: BLE001
         ctx.fail(exc)
     return ctx.state
@@ -110,7 +118,7 @@ async def execute_run(
 
 def measure_observations(
     ctx: RunContext, spec: ExperimentSpec, ing: IngestResult, seg: segment.SegmentationOutput
-) -> list[Observation]:
+) -> tuple[list[Observation], dict]:
     """Observations for target (+merged split ids), reference and string; csv + debug image."""
     observations: list[Observation] = []
     clip_frames = (
@@ -191,7 +199,7 @@ def measure_observations(
     target = summary["target"] or {}
     n_target = target.get("objects", {}).get(target.get("object_id"), {}).get("n", 0)
     ctx.emit("progress", message=f"{len(observations)} observations ({n_target} target frames)")
-    return observations
+    return observations, summary
 
 
 def load_json(path: Path) -> dict:

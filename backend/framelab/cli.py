@@ -139,7 +139,7 @@ def doctor(
 
 
 EXPERIMENT_AXIS = {"free_fall": "y", "pendulum": "x", "melting": "xy"}
-UNTIL_CHOICES = ("ingesting", "planning", "segmenting", "measuring")
+UNTIL_CHOICES = ("ingesting", "planning", "segmenting", "measuring", "analyzing")
 
 
 def manual_spec(
@@ -151,6 +151,7 @@ def manual_spec(
     ref_frame_s: float | None,
     window: str | None,
     lang: str,
+    ball_diameter_m: float | None = None,
 ):
     """Temporary ExperimentSpec from CLI flags until the Planner exists (M5)."""
     from framelab.schemas import ExperimentSpec, ReferenceObject
@@ -174,6 +175,7 @@ def manual_spec(
         target_concept=concept,
         target_alt_concepts=alt_concepts,
         reference=reference,
+        object_diameter_m=ball_diameter_m,
         analysis_window_s=(t0, t1),
         motion_axis=EXPERIMENT_AXIS.get(experiment, "xy"),  # type: ignore[arg-type]
         language=lang,  # type: ignore[arg-type]
@@ -201,15 +203,21 @@ def run(
         float | None, typer.Option(help="Time (s) where the reference is fully visible")
     ] = None,
     window: Annotated[str | None, typer.Option(help="Analysis window 't0,t1' in seconds")] = None,
+    ball_diameter_m: Annotated[
+        float | None, typer.Option(help="Real diameter of the ball (m), second scale method")
+    ] = None,
     experiment: Annotated[str, typer.Option(help="free_fall | pendulum")] = "free_fall",
     lang: Annotated[str, typer.Option(help="Report language: id | en")] = "id",
     capture_fps: Annotated[int | None, typer.Option(help="Real capture fps for slow-mo")] = None,
     until: Annotated[
         str, typer.Option(help=f"Stop after stage: {', '.join(UNTIL_CHOICES)}")
-    ] = "measuring",
+    ] = "analyzing",
     runs_dir: Annotated[Path | None, typer.Option(help="Runs folder (default: settings)")] = None,
 ) -> None:
-    """Run the pipeline on a video. M2: ingest → SAM → observations (stops at --until)."""
+    """Run the pipeline: ingest → SAM → observations → analysis (stops at --until).
+
+    Until the Planner (M5) and agents (M6) land, the spec comes from flags and the analysis is
+    deterministic (no LLM)."""
     import asyncio
 
     from framelab.pipeline.run import execute_run
@@ -225,7 +233,15 @@ def run(
     state = store.create_run(video.name, lang=lang, capture_fps=capture_fps)  # type: ignore[arg-type]
     shutil.copyfile(video, store.input_video_path(state.run_id))
     spec = manual_spec(
-        experiment, concept, alt_concept or [], ref_concept, ref_length_m, ref_frame_s, window, lang
+        experiment,
+        concept,
+        alt_concept or [],
+        ref_concept,
+        ref_length_m,
+        ref_frame_s,
+        window,
+        lang,
+        ball_diameter_m,
     )
     typer.echo(f"Run {state.run_id} → {store.run_dir(state.run_id)}")
     final = asyncio.run(execute_run(state.run_id, settings, spec_override=spec, until=Stage(until)))
@@ -237,6 +253,16 @@ def run(
     typer.secho(
         f"Stopped after {final.stage.value}. Cost ≈ ${final.cost_usd:.4f}", fg=typer.colors.GREEN
     )
+    if final.headline:
+        h = final.headline
+        agree = h.get("scale_agreement_pct")
+        typer.secho(f"\n  g = {h['formatted_en']}", bold=True)
+        typer.echo(
+            f"  95% CI [{h['ci95'][0]:.3f}, {h['ci95'][1]:.3f}] m/s² · reference {h['ref']} m/s² "
+            f"({h['rel_diff_en']}) · {h['fit_points']} points · scale: {h['scale_method']}"
+            + (f" (2nd method agrees within {agree:.1f}%)" if agree is not None else "")
+        )
+        typer.echo("")
     for name, rel in final.artifacts.items():
         typer.echo(f"  {name:<16} {run_dir / rel}")
     for warning in final.warnings:

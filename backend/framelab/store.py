@@ -10,6 +10,7 @@ import json
 import os
 import secrets
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,26 @@ def new_series_id() -> str:
     return f"s_{utcnow():%Y%m%d_%H%M%S}_{secrets.token_hex(3)}"
 
 
+REPLACE_RETRY_DELAYS_S = (0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.8)
+
+
+def replace_with_retry(src: str | Path, dst: str | Path) -> None:
+    """``os.replace`` that tolerates a destination held open for a moment by another process.
+
+    On Windows, replacing a file fails with ``PermissionError`` (WinError 5/32) while anyone
+    has it open, e.g. Defender or the Search indexer scanning a file we just wrote, or the API
+    reading ``state.json``. Those locks last milliseconds, so retry with a short backoff
+    (≈2 s in total) before giving up.
+    """
+    for delay in REPLACE_RETRY_DELAYS_S:
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            time.sleep(delay)
+    os.replace(src, dst)
+
+
 def write_json_atomic(path: Path, data: Any) -> None:
     """Atomically write JSON (pydantic models are dumped in JSON mode)."""
     if isinstance(data, BaseModel):
@@ -45,7 +66,7 @@ def write_json_atomic(path: Path, data: Any) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(payload)
-        os.replace(tmp, path)
+        replace_with_retry(tmp, path)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
