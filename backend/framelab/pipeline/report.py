@@ -255,6 +255,11 @@ def write_reports(run_dir: Path, ledger: Ledger, state: RunState) -> dict[str, P
         # 04 §9: a re-recording gets the one-page feedback, never a lab report with numbers
         written["feedback"] = html_to_pdf(render_feedback(run_dir, state, ledger),
                                           out / "recording_feedback.pdf")  # fmt: skip
+        frame = annotated_keyframe(run_dir)
+        if frame is not None:  # the same annotated frame for the web feedback card
+            png = out / "feedback_frame.png"
+            png.write_bytes(base64.b64decode(frame.split(",", 1)[1]))
+            written["feedback_frame"] = png
         return written
     drafts = {}
     main = run_dir / "draft_report.json"

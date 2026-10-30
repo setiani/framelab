@@ -19,12 +19,13 @@ building period.** No pre-existing code was used.
 | 2026-10-29 (night) | M8: charts (Plotly JSON, 1600×900 matplotlib PNG, series T₀² vs L), overlay video (mask contours, trail, HUD from fmt-formatted numbers, end card with the verdict), report HTML and A4 PDF in EN and ID (claims as phrases, appendices, data sample), recording-feedback page, `data.csv` in SI, and `framelab replay` offline. Live: replay on the PASS and trap runs, no model calls. |
 | 2026-10-29 (night) | M9: HTTP API (uploads with validation and a size limit, run detail, ledger, track, artifact allow-list, rerun, series), SSE with heartbeats and Last-Event-ID replay, runs as background tasks limited by concurrency, error format per 07 §1. Live: curl upload → PASS run (≈ $0.14), 123 events streamed and closed on done. |
 | 2026-10-30 | Audit of M5–M9 against the plan, and fixes: the pendulum now runs through the Analyst (damped-sine fit, period, amplitude-corrected period, g with a chosen length source), gates, Auditor, Designer, charts and overlay (pivot marker); the final verdict is stored before rendering and the Designer runs before the report, so live reports carry the verdict badge and the next experiment and re-recordings get the feedback page; no target / no scale / Planner stop end as NEEDS_RERECORD instead of FAILED; a student's fall-time prediction is tested (`fall_time`); a hypothesis claim must cite `compare_hypothesis` evidence; the Auditor reviews re-recording requests; run cost guard ($1.50); fallback capped at PASS_WITH_WARNINGS; `object_diameter_m` only from a spoken value; G1 coverage over the fit window plus `object_left_frame`, `camera_motion`, `air_drag_likely`; credits list Muse Wonder only when it ran. |
+| 2026-10-30 (evening) | M10: frontend (Vite + TypeScript, no framework): upload view with drop zone, language, slow-motion capture rate and note, recording guide, recent runs; run view with stage timeline, video player with frame scrubber, result readout with a confidence-interval gauge (interval, value and reference on one scale), spec and transcript, Plotly charts, live agent trace from SSE (pausable), Claim Ledger with the evidence chain highlighted in the trace, gates, next experiment, downloads, and the recording-feedback card with the slow-motion re-run; series view with T₀² vs L, g from the slope and the √L test; ID/EN interface; `fmt` ported to TypeScript and tested against the backend cases; works at 375 px. API additions: rendered claim sentences, transcript, verdict detail, next experiment, `video.mp4` and `feedback_frame.png` artifacts, series list. |
 
 <!-- Add one row per day: milestone(s) finished, notable decisions, what changed. -->
 
 ## AI assistance
 
-- Planning documents, the initial skeleton, M1–M4 and the M5–M9 audit fixes were written with an AI
+- Planning documents, the initial skeleton, M1–M4, the M5–M9 audit fixes and M10 (frontend) were written with an AI
   assistant (Claude), steered and reviewed by the author.
 - M5–M9 were implemented with Claude Code (Claude Haiku), steered by the author, following
   `docs/plan/`.
@@ -36,5 +37,6 @@ building period.** No pre-existing code was used.
 | Meta Model API: SAM 3.1, Muse Spark 1.3, Muse Wonder, Muse Voice Transcribe (+ Muse Image, Muse Spark Open if stretch goals are done) | Core models | Meta terms of service |
 | `meta_sam_parser` | Official SAM output parser | see package |
 | Patterns adapted from `github.com/meta-models/meta-model-cookbook` (SAM streaming helper, voice file transcription, tool-calling loop, error handling) | Reference patterns, cited in code comments | see repository |
-| FastAPI, Pydantic, OpenAI Python SDK, NumPy, SciPy, OpenCV, Pillow, Matplotlib, Jinja2, Playwright, Typer, Vite, TypeScript, Plotly.js | Libraries | MIT / BSD / Apache-2.0 |
+| FastAPI, Pydantic, OpenAI Python SDK, NumPy, SciPy, OpenCV, Pillow, Matplotlib, Jinja2, Playwright, Typer, Vite, TypeScript, Plotly.js, Vitest | Libraries | MIT / BSD / Apache-2.0 |
+| Instrument Sans, Martian Mono (via `@fontsource`) | Interface typefaces | SIL Open Font License 1.1 |
 | Sample videos in `samples/` | Recorded by the author | CC BY 4.0 |

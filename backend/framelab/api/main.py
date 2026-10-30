@@ -52,8 +52,8 @@ CHUNK_BYTES = 1 << 20
 MAX_LIST_ITEMS = 50  # ledger evidence data longer than this is truncated (07 §1)
 # The artifact allow-list (07 §1). Names only: no slashes, no dots before the extension.
 ARTIFACT_NAME = re.compile(
-    r"^(overlay\.mp4|report_(en|id)\.pdf|recording_feedback\.pdf|data\.csv"
-    r"|chart_[a-z_]+\.(json|png)|keyframe\.png|next_experiment\.json)$"
+    r"^(overlay\.mp4|video\.mp4|report_(en|id)\.pdf|recording_feedback\.pdf|data\.csv"
+    r"|chart_[a-z_]+\.(json|png)|keyframe\.png|feedback_frame\.png|next_experiment\.json)$"
 )
 
 
@@ -98,6 +98,25 @@ def _truncate(value: Any) -> Any:
             ]
         return [_truncate(v) for v in value]
     return value
+
+
+def _next_experiment(run_dir: Path) -> dict[str, Any] | None:
+    """The Designer's proposal with its predictions rendered by code (fmt), both languages."""
+    path = run_dir / "analysis" / "designer.json"
+    if not path.is_file():
+        return None
+    from framelab.agent.designer import render_text
+
+    data = read_json(path)
+    preds = data.get("predicted_values") or []
+    for lang in ("en", "id"):
+        try:
+            data[f"prediction_{lang}_rendered"] = render_text(
+                data.get(f"prediction_{lang}", ""), preds, lang
+            )
+        except KeyError:
+            data[f"prediction_{lang}_rendered"] = None
+    return data
 
 
 def create_app(settings: Settings | None = None, runner: Runner | None = None) -> FastAPI:
@@ -266,6 +285,18 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
             claims = [c.model_dump(mode="json") for c in ledger.claims()]
         body["gates"] = [latest[k] for k in sorted(latest)]
         body["claims"] = claims
+        if ledger is not None:  # claim sentences rendered by code, as in the report appendix
+            for claim, row in zip(ledger.claims(), claims, strict=True):
+                for lang in ("en", "id"):
+                    try:
+                        row[f"text_{lang}"] = view.claim_sentence(ledger, claim, lang)
+                    except (KeyError, ValueError):
+                        row[f"text_{lang}"] = None
+        transcript = run_dir / "transcript.json"
+        body["transcript"] = read_json(transcript) if transcript.is_file() else None
+        verdict = run_dir / "analysis" / "verdict.json"
+        body["verdict_detail"] = read_json(verdict) if verdict.is_file() else None
+        body["next_experiment"] = _next_experiment(run_dir)
         return body
 
     @app.get("/api/runs/{run_id}/events")
@@ -304,13 +335,14 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
             {"frame": r.frame, "t": r.t, "x_px": r.x_px, "y_px": r.y_px, "valid": r.valid,
              "flag": r.flag} for r in rows
         ]  # fmt: skip
-        fit = view.fit_view(ledger, "quadratic")
+        fit = view.primary_fit(ledger)
+        key = "x_px" if fit is not None and fit.model == "damped_sine" else "y_px"
         curve: list[dict[str, float]] = []
         if fit is not None and fit.t_start is not None and fit.t_end is not None:
-            steps = 200
+            steps = 200 if key == "y_px" else 1200
             for k in range(steps + 1):
                 t = fit.t_start + (fit.t_end - fit.t_start) * k / steps
-                curve.append({"t": t, "y_px": view.poly_px(fit.params, fit.t_offset, t)})
+                curve.append({"t": t, key: view.predict_px(fit, t)})
         return {"fps": float(ing["file_fps"]), "points": points, "fit_curve": curve}
 
     @app.get("/api/runs/{run_id}/artifacts/{name}")
@@ -324,6 +356,8 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
             path = frames[0] if frames else run_dir / "missing"
         elif name == "next_experiment.json":
             path = run_dir / "analysis" / "designer.json"
+        elif name == "video.mp4":  # the normalised input, shown while the run is processing
+            path = run_dir / "ingest" / "video.mp4"
         else:
             path = run_dir / "outputs" / name
         path = store.artifact_path(run_id, str(path.relative_to(run_dir)))
@@ -372,6 +406,18 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
         _spawn(f"series:{series_id}", job)
         return {"series_id": series_id, "status": "analyzing"}
 
+    @app.get("/api/series")
+    def list_series(limit: int = 20) -> list[dict]:
+        root = store.root / "series"
+        items = []
+        for path in root.glob("s_*/series.json") if root.is_dir() else []:
+            try:
+                items.append(read_json(path))
+            except ValueError:
+                continue
+        items.sort(key=lambda s: s.get("created_at", ""), reverse=True)
+        return items[: max(1, min(limit, 200))]
+
     @app.get("/api/series/{series_id}")
     def get_series(series_id: str) -> dict:
         series = store.load_series(series_id)
@@ -388,6 +434,8 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str) -> FileResponse:
+            if full_path == "api" or full_path.startswith("api/"):  # unknown API path: JSON 404
+                raise ApiError(404, "not_found", f"no route /{full_path}")
             candidate = (WEB_DIST / full_path).resolve()
             if full_path and candidate.is_file() and WEB_DIST in candidate.parents:
                 return FileResponse(candidate)

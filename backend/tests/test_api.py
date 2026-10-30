@@ -315,3 +315,37 @@ def test_health_still_answers(settings) -> None:
     with client_for(settings) as client:
         body = client.get("/api/health").json()
     assert body["ok"] is True and body["models"]["sam"] == "sam-3.1"
+
+
+def test_run_detail_has_claim_sentences_transcript_and_series_list(tmp_path) -> None:
+    """M10 additions: rendered claim text, transcript, verdict detail, next experiment, series."""
+    from fastapi.testclient import TestClient
+
+    from framelab.agent.ledger import Ledger
+    from framelab.api.main import create_app
+    from framelab.config import Settings
+    from framelab.store import RunStore, write_json_atomic
+
+    settings = Settings(runs_dir=tmp_path / "runs")
+    store = RunStore(settings.runs_dir)
+    state = store.create_run("x.mp4")
+    run_dir = store.run_dir(state.run_id)
+    ledger = Ledger(run_dir / "analysis" / "ledger.jsonl")
+    ev = ledger.add_evidence("der", "derive", {"quantity": "g", "value": 9.8123, "unit": "m/s^2",
+                                               "ci95": [9.75, 9.87]}, "g")  # fmt: skip
+    ledger.add_claim("derived", ev.id, "g = {value}", "g = {value}", quantity="g")
+    write_json_atomic(run_dir / "transcript.json", {"text": "satu meter", "turns": []})
+    write_json_atomic(run_dir / "analysis" / "verdict.json", {"status": "PASS", "notes": "ok"})
+    write_json_atomic(run_dir / "analysis" / "designer.json", {
+        "title": "Next", "prediction_en": "From {{p1}}.", "prediction_id": "Dari {{p1}}.",
+        "predicted_values": [{"id": "p1", "predicted": 0.3194, "unit_out": "s"}]})  # fmt: skip
+    store.create_series([])
+    client = TestClient(create_app(settings, runner=lambda *a: None))
+    body = client.get(f"/api/runs/{state.run_id}").json()
+    assert body["claims"][0]["text_en"] == "g = 9.81 ± 0.03 m/s²"
+    assert body["claims"][0]["text_id"] == "g = 9,81 ± 0,03 m/s²"
+    assert body["transcript"]["text"] == "satu meter"
+    assert body["verdict_detail"]["notes"] == "ok"
+    assert body["next_experiment"]["prediction_en_rendered"] == "From 0.319 s."
+    assert len(client.get("/api/series").json()) == 1
+    assert client.get(f"/api/runs/{state.run_id}/artifacts/video.mp4").status_code == 404
