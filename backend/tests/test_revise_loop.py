@@ -163,30 +163,49 @@ async def test_exhausted_rounds_end_as_pass_with_warnings(tmp_path, monkeypatch)
     assert "auditor_unresolved" in state["warnings"]
 
 
-async def test_an_analyst_rerecord_request_skips_the_auditor(tmp_path, monkeypatch) -> None:
-    rerecord = [
-        [
-            (
-                "request_rerecord",
-                {
-                    "reasons": ["low_coverage_blur"],
-                    "tips_en": ["Film in brighter light."],
-                    "tips_id": ["Rekam dengan cahaya lebih terang."],
-                },
-            )
-        ]
+RERECORD = [
+    [
+        (
+            "request_rerecord",
+            {
+                "reasons": ["low_coverage_blur"],
+                "tips_en": ["Film in brighter light."],
+                "tips_id": ["Rekam dengan cahaya lebih terang."],
+            },
+        )
     ]
+]
+
+
+async def test_an_analyst_rerecord_request_is_confirmed_by_the_auditor(tmp_path, monkeypatch):
+    """06 §4: request_rerecord is terminal for the Analyst, but the Auditor still reviews it."""
     state, run_dir, _, auditor_chat = await run_pipeline(
         tmp_path, monkeypatch,
-        analyst_steps=rerecord,
-        auditor_steps=[],
+        analyst_steps=RERECORD,
+        auditor_steps=[verdict("NEEDS_RERECORD")],
         until=Stage.AUDITING,
     )  # fmt: skip
 
     assert state["verdict"] == "NEEDS_RERECORD"
-    assert auditor_chat.calls == []
+    assert len(auditor_chat.calls) == 1
+    assert "RE-RECORDING" in auditor_chat.calls[0]["messages"][1]["content"]
     verdict_json = json.loads((run_dir / "analysis" / "verdict.json").read_text(encoding="utf-8"))
     assert "Film in brighter light." in verdict_json["rerecord_tips_en"]
+
+
+async def test_a_refused_rerecord_request_sends_the_analyst_back(tmp_path, monkeypatch):
+    """The gates pass, so the Auditor refuses the re-recording; round 2 writes the report."""
+    state, run_dir, _, auditor_chat = await run_pipeline(
+        tmp_path, monkeypatch,
+        analyst_steps=RERECORD + ROUND0,
+        auditor_steps=[verdict("PASS"), verdict("PASS")],
+        until=Stage.AUDITING,
+    )  # fmt: skip
+
+    first = read_verdict(run_dir, 0)
+    assert first["status"] == "REJECT" and first["fix_instructions"]
+    assert state["verdict"] in ("PASS", "PASS_WITH_WARNINGS")
+    assert state["revise_rounds"] == 1
 
 
 async def test_rendering_stage_writes_both_languages_and_registers_artifacts(
@@ -235,7 +254,7 @@ async def test_rendering_stage_writes_both_languages_and_registers_artifacts(
     store = RunStore(settings.runs_dir)
     state = store.create_run("freefall.mp4", lang="en")
     shutil.copyfile(MEDIA / "freefall_60fps_5s.mp4", store.input_video_path(state.run_id))
-    await execute_run(state.run_id, settings, until=Stage.DESIGNING)
+    await execute_run(state.run_id, settings)
 
     run_dir = store.run_dir(state.run_id)
     final = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))

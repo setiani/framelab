@@ -248,9 +248,11 @@ def test_replay_makes_no_model_calls(tmp_path, monkeypatch) -> None:
     result = CliRunner().invoke(cli_app, ["replay", str(run), "--no-overlay"])
 
     assert result.exit_code == 0, result.output
-    for name in ("chart_trajectory.json", "chart_trajectory.png", "data.csv", "report_en.pdf",
+    for name in ("chart_trajectory.json", "chart_trajectory.png", "data.csv",
                  "recording_feedback.pdf"):  # fmt: skip
         assert (run / "outputs" / name).exists(), name
+    # a re-recording gets the feedback page only, never a lab report (04 §9, audit fix)
+    assert not (run / "outputs" / "report_en.pdf").exists()
     # the draft is in one language only, so there is no second report (04 §9)
     assert not (run / "outputs" / "report_id.pdf").exists()
 

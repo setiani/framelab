@@ -47,7 +47,6 @@ LABELS = {
         "variable": "Changed variable", "controlled": "Controlled variables",
         "feedback": "Recording feedback", "tips": "Tips", "failed": "What failed",
         "rerecord": "Record the video again", "page_note": "Generated from the run's saved files.",
-        "built": "Built with Meta SAM 3.1 · Muse Spark · Muse Wonder",
     },
     "id": {
         "title_fallback": "Pengukuran jatuh bebas", "run": "Run", "date": "Tanggal",
@@ -64,7 +63,6 @@ LABELS = {
         "variable": "Variabel yang diubah", "controlled": "Variabel terkendali",
         "feedback": "Umpan balik rekaman", "tips": "Saran", "failed": "Yang gagal",
         "rerecord": "Rekam ulang video", "page_note": "Dibuat dari berkas run yang tersimpan.",
-        "built": "Dibangun dengan Meta SAM 3.1 · Muse Spark · Muse Wonder",
     },
 }  # fmt: skip
 VERDICT_LABEL = {
@@ -129,8 +127,8 @@ def data_sample(run_dir: Path, lang: str, rows: int = 25) -> list[dict[str, str]
             if line and not line.startswith("#")]  # fmt: skip
     reader = list(csv.DictReader(body))
     step = max(1, len(reader) // rows)
-    return [{"t": r["t_s"], "x": r["x_m"], "y": r["y_m"], "valid": r["valid"], "flag": r["flag"]}
-            for r in reader[::step]]  # fmt: skip
+    return [{"t": r["t_s"], "x": r.get("x_m", r.get("x_px")), "y": r.get("y_m", r.get("y_px")),
+             "valid": r["valid"], "flag": r["flag"]} for r in reader[::step]]  # fmt: skip
 
 
 def models_used(state: RunState, verdict: dict[str, Any] | None) -> list[dict[str, str]]:
@@ -182,18 +180,25 @@ def _env() -> Environment:
     )
 
 
+def _has_metres(ledger: Ledger) -> bool:
+    return view.scale_m_per_px(ledger) is not None
+
+
 def render_html(run_dir: Path, draft: ReportDraft, state: RunState, ledger: Ledger) -> str:
     """Fill templates/report.html.j2 for one language."""
     lang = draft.lang
     verdict = read_json(run_dir / "analysis" / "verdict.json") if (
         run_dir / "analysis" / "verdict.json"
     ).is_file() else None  # fmt: skip
+    labels = dict(LABELS[lang])
+    if not _has_metres(ledger):  # pendulum without a scale: the data sample is in pixels
+        labels.update({"x": "x (px)", "y": "y (px)"})
     chart = run_dir / "outputs" / "chart_trajectory.png"
     figure = data_uri(chart, "image/png") if chart.is_file() else None
     status = state.verdict or ""
     context = {
         "lang": lang,
-        "t": LABELS[lang],
+        "t": labels,
         "title": render_text(draft.title, ledger, lang),
         "run_id": state.run_id,
         "date": state.created_at.date().isoformat(),
@@ -219,7 +224,7 @@ def render_html(run_dir: Path, draft: ReportDraft, state: RunState, ledger: Ledg
         "sample": data_sample(run_dir, lang),
         "next": next_experiment(run_dir, lang),
         "auditor_model": (verdict or {}).get("auditor_model", ""),
-        "built": LABELS[lang]["built"],
+        "built": overlay.built_with(lang, (verdict or {}).get("auditor_model")),
     }
     return _env().get_template("report.html.j2").render(**context)
 
@@ -246,6 +251,11 @@ def write_reports(run_dir: Path, ledger: Ledger, state: RunState) -> dict[str, P
     out = run_dir / "outputs"
     out.mkdir(parents=True, exist_ok=True)
     written: dict[str, Path] = {}
+    if state.verdict == "NEEDS_RERECORD":
+        # 04 §9: a re-recording gets the one-page feedback, never a lab report with numbers
+        written["feedback"] = html_to_pdf(render_feedback(run_dir, state, ledger),
+                                          out / "recording_feedback.pdf")  # fmt: skip
+        return written
     drafts = {}
     main = run_dir / "draft_report.json"
     if main.is_file():
@@ -259,9 +269,6 @@ def write_reports(run_dir: Path, ledger: Ledger, state: RunState) -> dict[str, P
         html = render_html(run_dir, draft, state, ledger)
         pdf = html_to_pdf(html, out / f"report_{lang}.pdf")
         written[f"report_{lang}"] = pdf
-    if state.verdict == "NEEDS_RERECORD":
-        written["feedback"] = html_to_pdf(render_feedback(run_dir, state, ledger),
-                                          out / "recording_feedback.pdf")  # fmt: skip
     return written
 
 
@@ -337,7 +344,9 @@ def export_csv(run_dir: Path) -> Path:
     state = RunState.model_validate(read_json(run_dir / "state.json"))
     ledger = Ledger(run_dir / "analysis" / "ledger.jsonl")
     m = view.scale_m_per_px(ledger)
-    if m is None:
+    fit = view.primary_fit(ledger)
+    pixels = m is None and fit is not None and fit.model == "damped_sine"
+    if m is None and not pixels:
         raise ValueError("no scale in the ledger: data.csv has no metres")
     rows = view.track_rows(run_dir, ledger)
     valid = [r for r in rows if r.valid]
@@ -349,6 +358,18 @@ def export_csv(run_dir: Path) -> Path:
     name = method.data.get("method", "?") if method is not None else "?"
     path = run_dir / "outputs" / "data.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
+    if pixels:  # a pendulum without any scale: positions stay in pixels (the period needs none)
+        with path.open("w", encoding="utf-8", newline="") as fh:
+            fh.write(f"# run_id: {state.run_id}\n")
+            fh.write("# scale: none (no ruler and no string length); positions in pixels\n")
+            fh.write(f"# fps: {fps:g}\n")
+            writer = csv.writer(fh)
+            writer.writerow(["frame", "t_s", "x_px", "y_px", "area_px2", "valid", "flag"])
+            for r in rows:
+                writer.writerow([r.frame, f"{r.t:.6f}", f"{r.x_px - x0:.3f}", f"{r.y_px - y0:.3f}",
+                                 f"{r.area_px:.1f}", int(r.valid), r.flag])  # fmt: skip
+        return path
+    assert m is not None
     with path.open("w", encoding="utf-8", newline="") as fh:
         fh.write(f"# run_id: {state.run_id}\n")
         fh.write(f"# scale: {m * 1000:.4f} mm/px ({name}); y downward positive\n")

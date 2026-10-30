@@ -120,6 +120,24 @@ def to_spec(out: PlannerOutput, lang: Lang) -> ExperimentSpec:
     )
 
 
+def sync_object_diameter(spec: ExperimentSpec) -> tuple[ExperimentSpec, list[str]]:
+    """06 §2: ``object_diameter_m`` only if spoken. Code copies it from the traced
+    ``spoken_params.ball_diameter``; a model value without a spoken source is dropped."""
+    spoken = spec.spoken_params.get("ball_diameter")
+    value = spoken.to_si() if spoken is not None else None
+    warnings: list[str] = []
+    if spec.object_diameter_m is not None and value is None:
+        warnings.append("Dropped object_diameter_m: no spoken ball diameter supports it")
+    elif (spec.object_diameter_m is not None and value is not None
+          and not math.isclose(spec.object_diameter_m, value, rel_tol=1e-6)):  # fmt: skip
+        warnings.append("object_diameter_m replaced by the spoken ball diameter")
+    if value == spec.object_diameter_m:
+        return spec, warnings
+    return spec.model_copy(
+        update={"object_diameter_m": value, "warnings": [*spec.warnings, *warnings]}
+    ), warnings
+
+
 def apply_overrides(spec: ExperimentSpec, overrides: dict[str, Any]) -> ExperimentSpec:
     """Typed user flags win over the Planner. ``spoken_params`` merge key by key."""
     if not overrides:
@@ -450,6 +468,10 @@ async def run(
         if remaining:
             raise PlannerError("Planner output invalid: " + "; ".join(remaining))
 
+    spec, diameter_warnings = sync_object_diameter(spec)
+    if emit:
+        for warning in diameter_warnings:
+            emit("warning", message=warning)
     if ledger is not None:
         record_spoken_evidence(spec, transcript, ledger)
     return spec

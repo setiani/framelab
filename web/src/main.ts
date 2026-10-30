@@ -17,7 +17,7 @@ function shell(content: HTMLElement): HTMLElement {
   root.appendChild(content);
   const footer = document.createElement("footer");
   footer.className = "models";
-  footer.textContent = "Built with Meta SAM 3.1 · Muse Spark 1.3 · Muse Wonder · Muse Voice Transcribe";
+  footer.textContent = "Built with Meta SAM 3.1 · Muse Spark 1.3 · Muse Voice Transcribe";
   root.appendChild(footer);
   return root;
 }

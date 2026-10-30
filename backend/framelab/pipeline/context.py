@@ -19,6 +19,10 @@ from framelab.schemas import RunState, Stage, utcnow
 from framelab.store import RunStore, write_json_atomic
 
 
+class CostGuardExceeded(RuntimeError):
+    """06 §10: the run's model cost reached ``run_cost_guard_usd``; no further model call."""
+
+
 @dataclass
 class RunContext:
     """Everything a stage needs. Stages read/write files under ``run_dir`` and call ``emit``."""
@@ -44,7 +48,17 @@ class RunContext:
         return self.store.run_dir(self.state.run_id)
 
     def emit(self, type: str, **payload: Any) -> dict[str, Any]:
-        """Emit an event at the current stage. ``model_result`` costs are added to the run."""
+        """Emit an event at the current stage. ``model_result`` costs are added to the run.
+
+        A ``model_call`` is refused (``CostGuardExceeded``, error code ``cost_guard``) once the
+        run has spent ``run_cost_guard_usd`` (06 §10).
+        """
+        guard = self.settings.run_cost_guard_usd
+        if type == "model_call" and guard and self.state.cost_usd >= guard:
+            raise CostGuardExceeded(
+                f"cost_guard: the run spent ${self.state.cost_usd:.2f} (limit ${guard:.2f}); "
+                f"{payload.get('purpose', 'model')} call refused"
+            )
         if type == "model_result" and payload.get("cost_usd"):
             self.state.cost_usd = round(self.state.cost_usd + float(payload["cost_usd"]), 6)
         if type == "warning" and payload.get("message"):

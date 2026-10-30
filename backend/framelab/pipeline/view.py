@@ -11,6 +11,7 @@ model, so ``framelab replay`` works offline.
 from __future__ import annotations
 
 import csv
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,8 @@ from framelab.agent.ledger import Ledger
 from framelab.agent.narrative import render_statement
 from framelab.physics.uncertainty import fmt, sigma_from_ci
 from framelab.schemas import Claim, Evidence
+
+HEADLINE_SYMBOL = {"g": "g", "period": "T"}
 
 
 @dataclass(frozen=True)
@@ -108,10 +111,25 @@ def fit_view(ledger: Ledger, model: str = "quadratic") -> FitView | None:
     )
 
 
+def _claim_quantity(ledger: Ledger, claim: Claim) -> str | None:
+    """The quantity of the ``der_`` evidence a claim copies its value from."""
+    try:
+        ev = ledger.get(claim.evidence[0])
+    except (KeyError, IndexError):
+        return None
+    return ev.data.get("quantity") if ev.tool == "derive" else None
+
+
 def headline_claim(ledger: Ledger) -> Claim | None:
-    """The latest claim of the headline quantity (g) with a value: the Analyst names its
-    claims ``derived`` or ``measurement`` (both carry the value copied from ``der_``)."""
-    for claim in reversed(ledger.claims()):
+    """The latest claim of the headline quantity: g, else (pendulum without a length) the
+    measured period. The quantity is read from the claim's ``der_`` evidence, not its label."""
+    for quantity in ("g", "period"):
+        for claim in reversed(ledger.claims()):
+            if claim.value is not None and claim.claim_type in ("derived", "measurement") and (
+                _claim_quantity(ledger, claim) == quantity
+            ):  # fmt: skip
+                return claim
+    for claim in reversed(ledger.claims()):  # a claim labelled g on other evidence (older runs)
         if claim.quantity == "g" and claim.value is not None and claim.claim_type in (
             "derived", "measurement",
         ):  # fmt: skip
@@ -120,25 +138,55 @@ def headline_claim(ledger: Ledger) -> Claim | None:
 
 
 def headline_text(ledger: Ledger, lang: str) -> str:
-    """'g = 9.82 ± 0.03 m/s²' from the headline claim, formatted with fmt."""
+    """'g = 9.82 ± 0.03 m/s²' (or 'T = 1.559 ± 0.002 s') from the headline claim, via fmt."""
     claim = headline_claim(ledger)
     if claim is None or claim.value is None:
         return ""
     sigma = sigma_from_ci(*claim.ci95) if claim.ci95 else None
-    return f"{claim.quantity} = {fmt(claim.value, sigma, claim.unit or '', lang)}"
+    symbol = HEADLINE_SYMBOL.get(_claim_quantity(ledger, claim) or "", claim.quantity or "")
+    return f"{symbol} = {fmt(claim.value, sigma, claim.unit or '', lang)}"
+
+
+def primary_fit(ledger: Ledger) -> FitView | None:
+    """The latest headline-model fit: quadratic (free fall) or damped_sine (pendulum)."""
+    fits = [fit_view(ledger, m) for m in ("quadratic", "damped_sine")]
+    fits = [f for f in fits if f is not None]
+    return max(fits, key=lambda f: int(f.fit.id.split("_")[1])) if fits else None
+
+
+def predict_px(fit: FitView, t: float) -> float:
+    """The fitted position in pixels at time t (y for free fall, x for the pendulum)."""
+    if fit.model == "damped_sine":
+        p = fit.params
+        tau = t - fit.t_offset
+        return (p["A"] * math.exp(-p["gamma"] * tau) * math.cos(p["omega"] * tau + p["phi"])
+                + p["c"] + p["d"] * tau)  # fmt: skip
+    return poly_px(fit.params, fit.t_offset, t)
+
+
+def pivot(ledger: Ledger) -> dict | None:
+    """The pendulum pivot (``calibrate_pivot`` evidence) if it is reliable."""
+    ev = latest_evidence(ledger, "cal_", lambda e: e.tool == "calibrate_pivot")
+    if ev is None or not ev.data.get("reliable"):
+        return None
+    return ev.data
 
 
 def claim_sentence(ledger: Ledger, claim: Claim, lang: str) -> str:
     return render_statement(claim, ledger.get(claim.evidence[0]), lang)
 
 
-def relative_metres(rows: list[TrackRow], m_per_px: float) -> tuple[float, list[float]]:
-    """Reference point (first valid y, px) and the y of every row in metres, downward positive."""
+def relative_metres(
+    rows: list[TrackRow], m_per_px: float, coord: str = "y"
+) -> tuple[float, list[float]]:
+    """Reference point (first valid y or x, px) and that coordinate of every row in metres
+    (y downward positive). With ``m_per_px`` = 1 the values stay in pixels."""
     valid = [r for r in rows if r.valid]
     if not valid:
         raise ValueError("the track has no valid points")
-    y0 = valid[0].y_px
-    return y0, [(r.y_px - y0) * m_per_px for r in rows]
+    attr = "x_px" if coord == "x" else "y_px"
+    v0 = getattr(valid[0], attr)
+    return v0, [(getattr(r, attr) - v0) * m_per_px for r in rows]
 
 
 def poly_px(params: dict[str, float], t_offset: float, t: float) -> float:

@@ -139,6 +139,37 @@ TEMPLATES: dict[str, tuple[str, str]] = {
         "The fit has not been computed yet.",
         "Fit belum dihitung.",
     ),
+    "no_target": (
+        "The moving object ({concept}) was not found in the video, so nothing could be measured. "
+        "Use a brightly coloured object on a plain background, in good light, and keep it fully "
+        "in the frame.",
+        "Objek yang bergerak ({concept}) tidak ditemukan di video, sehingga tidak ada yang bisa "
+        "diukur. Gunakan objek berwarna mencolok dengan latar polos, cahaya cukup, dan pastikan "
+        "objek selalu di dalam frame.",
+    ),
+    "object_left_frame": (
+        "The object left the frame before the first impact; the fit uses the part that was "
+        "visible. Keep the whole fall in view.",
+        "Objek keluar dari frame sebelum benturan pertama; fit memakai bagian yang terlihat. "
+        "Pastikan seluruh lintasan jatuh terekam.",
+    ),
+    "no_length": (
+        "No string length is known (not spoken, no ruler): only the period is reported.",
+        "Panjang tali tidak diketahui (tidak diucapkan, tidak ada penggaris): hanya periode yang "
+        "dilaporkan.",
+    ),
+    "camera_motion": (
+        "The swing's centre drifts by {drift} over the recording: the camera probably moved. "
+        "Put the phone on a stand.",
+        "Titik tengah ayunan bergeser {drift} selama rekaman: kamera kemungkinan bergerak. "
+        "Letakkan ponsel pada penyangga.",
+    ),
+    "air_drag_likely": (
+        "The measured value {value} is low and the residuals are correlated: air drag on a light "
+        "object is likely. Use a small, heavy ball.",
+        "Nilai terukur {value} rendah dan residu berkorelasi: hambatan udara pada benda ringan "
+        "kemungkinan berperan. Gunakan bola kecil yang berat.",
+    ),
 }
 
 
@@ -200,18 +231,33 @@ def jump_factor(track: Track, *, half_window: int = 5, moving_px: float = 0.5) -
     return max(ratios, default=0.0)
 
 
+def window_coverage(track: Track, t_start: float, t_end: float) -> float:
+    """Share of the frames inside the fit window that hold a valid point (04 §5.2)."""
+    frames = round((t_end - t_start) * track.fps) + 1
+    inside = sum(1 for p in track.points if p.valid and t_start - 1e-9 <= p.t <= t_end + 1e-9)
+    return min(1.0, inside / frames) if frames > 0 else 0.0
+
+
 def gate_track(
     track: Track,
     thresholds: GateThresholds,
     *,
     min_points: int,
     cycles: float | None = None,
+    window: tuple[float, float] | None = None,
+    window_warnings: list[str] | None = None,
 ) -> GateResult:
+    """G1. Coverage is measured inside the fit window once there is one (04 §5.2, M3 note);
+    before that over the whole track."""
     valid = [p for p in track.points if p.valid]
     n_valid = len(valid)
+    if window is not None:
+        n_valid = sum(1 for p in valid if window[0] - 1e-9 <= p.t <= window[1] + 1e-9)
+    coverage = window_coverage(track, *window) if window is not None else track.coverage
     jump = jump_factor(track)
     metrics: dict[str, Any] = {
-        "coverage": round(track.coverage, 4),
+        "coverage": round(coverage, 4),
+        "coverage_scope": "fit_window" if window is not None else "track",
         "n_valid": n_valid,
         "jump_factor": round(jump, 3),
         "id_switches": track.id_switches_suspected,
@@ -224,7 +270,7 @@ def gate_track(
     fill = {
         "n": n_valid,
         "min": min_points,
-        "coverage": f"{track.coverage:.0%}",
+        "coverage": f"{coverage:.0%}",
         "missing": len(track.points) - n_valid,
         "jump": f"{jump:.1f}",
         "cycles": f"{cycles:.1f}" if cycles is not None else "",
@@ -234,7 +280,7 @@ def gate_track(
         thr["min_cycles"] = thresholds.g1_min_cycles
         fill["min"] = thresholds.g1_min_cycles
     name = "Track integrity"
-    if track.coverage < thresholds.g1_min_coverage:
+    if coverage < thresholds.g1_min_coverage:
         return _gate("G1", name, "fail", hard=True, diagnosis="low_coverage_blur",
                      remedy="rerecord", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
     if n_valid < min_points:
@@ -246,7 +292,16 @@ def gate_track(
     if cycles is not None and cycles < thresholds.g1_min_cycles:
         return _gate("G1", name, "fail", hard=True, diagnosis="too_few_cycles",
                      remedy="rerecord", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
+    if window_warnings and "object_left_frame" in window_warnings:
+        return _gate("G1", name, "warn", hard=False, diagnosis="object_left_frame",
+                     remedy="none", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
     return _gate("G1", name, "pass", hard=True, metrics=metrics, thresholds=thr)
+
+
+def gate_no_target(concept: str) -> GateResult:
+    """G1 when SAM found no usable track at all (04 §1: re-record, not a crash)."""
+    return _gate("G1", "Track integrity", "fail", hard=True, diagnosis="no_target",
+                 remedy="rerecord", metrics={"n_valid": 0}, fill={"concept": concept})  # fmt: skip
 
 
 # --------------------------------------------------------------------------------------------
@@ -258,6 +313,8 @@ def gate_scale(
     calibration: Calibration | None, thresholds: GateThresholds, *, pendulum: bool = False
 ) -> GateResult:
     name = "Scale consistency"
+    if calibration is None and pendulum:  # 06 §7: skipped for a pendulum without a length
+        return _gate("G2", name, "skipped", hard=False, diagnosis="no_length", remedy="none")
     if calibration is None:
         return _gate("G2", name, "fail", hard=True, diagnosis="no_scale", remedy="rerecord")
     if calibration.secondary is None or calibration.agreement_pct is None:
@@ -285,7 +342,14 @@ def gate_scale(
 # --------------------------------------------------------------------------------------------
 
 
-def gate_fit(fit: dict[str, Any], thresholds: GateThresholds) -> GateResult:
+def gate_fit(
+    fit: dict[str, Any],
+    thresholds: GateThresholds,
+    *,
+    drift_px_s: float | None = None,
+    duration_s: float | None = None,
+    period_s: float | None = None,
+) -> GateResult:
     r2, rms, dw = float(fit["r2"]), float(fit["rms_px"]), float(fit["durbin_watson"])
     metrics = {"r2": round(r2, 6), "rms_px": round(rms, 3), "durbin_watson": round(dw, 3)}
     thr = {
@@ -304,6 +368,15 @@ def gate_fit(fit: dict[str, Any], thresholds: GateThresholds) -> GateResult:
     if dw < thresholds.g3_min_durbin_watson:
         return _gate("G3", name, "warn", hard=False, diagnosis="systematic_residuals",
                      remedy="reanalyze", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
+    amplitude = float(fit.get("params", {}).get("A", 0.0))
+    if drift_px_s is not None and period_s and amplitude > 0:
+        # 06 §7: pendulum drift |d|·T > 0.1·A → warn (camera moved)
+        metrics["drift_px_s"] = round(drift_px_s, 3)
+        if abs(drift_px_s) * period_s > 0.1 * amplitude:
+            moved = abs(drift_px_s) * (duration_s or period_s)
+            return _gate("G3", name, "warn", hard=False, diagnosis="camera_motion",
+                         remedy="rerecord", metrics=metrics, thresholds=thr,
+                         fill={**fill, "drift": f"{moved:.0f} px"})  # fmt: skip
     return _gate("G3", name, "pass", hard=True, metrics=metrics, thresholds=thr)
 
 
@@ -321,7 +394,12 @@ def slowmo_factor(g_measured: float, g_ref: float, ks: tuple[int, ...] = (2, 4, 
 
 
 def gate_plausibility(
-    value: float, thresholds: GateThresholds, *, g_ref: float = G_REF_DEFAULT
+    value: float,
+    thresholds: GateThresholds,
+    *,
+    g_ref: float = G_REF_DEFAULT,
+    durbin_watson: float | None = None,
+    free_fall: bool = False,
 ) -> GateResult:
     lo, hi = thresholds.g4_range
     name = "Physical plausibility"
@@ -336,6 +414,16 @@ def gate_plausibility(
         return _gate("G4", name, "warn", hard=False, diagnosis="out_of_range", remedy="none",
                      metrics=metrics, thresholds=thr,
                      fill={"value": f"{value:.2f} m/s²", "lo": lo, "hi": hi})  # fmt: skip
+    low = value < 0.97 * g_ref
+    if (
+        free_fall
+        and low
+        and durbin_watson is not None
+        and durbin_watson < thresholds.g3_min_durbin_watson
+    ):
+        return _gate("G4", name, "warn", hard=False, diagnosis="air_drag_likely", remedy="none",
+                     metrics=metrics, thresholds=thr,
+                     fill={"value": f"{value:.2f} m/s²"})  # fmt: skip
     return _gate("G4", name, "pass", hard=False, metrics=metrics, thresholds=thr)
 
 
@@ -358,6 +446,28 @@ def draft_texts(draft: ReportDraft | dict[str, Any]) -> list[str]:
     return texts
 
 
+def _cites_hypothesis_test(claim: Any, ledger: Ledger) -> bool:
+    """A hypothesis claim must rest on compare_hypothesis evidence, not on any evidence."""
+    for evidence_id in claim.evidence:
+        try:
+            if ledger.get(evidence_id).tool == "hypothesis_test":
+                return True
+        except KeyError:
+            continue
+    return False
+
+
+def hypothesis_required(spec: Any) -> bool:
+    """G5 demands a hypothesis_test claim when the prediction can be tested (s or m/s²)."""
+    pred = getattr(spec, "hypothesis_prediction", None)
+    if pred is None:
+        return False
+    try:
+        return pred.si_unit() in ("s", "m/s^2")
+    except KeyError:
+        return False
+
+
 def gate_g5(
     draft: ReportDraft | dict[str, Any], ledger: Ledger, *, hypothesis: bool = False
 ) -> GateResult:
@@ -377,7 +487,10 @@ def gate_g5(
     used = set(d.get("claims_used", []))
     if used != found:
         violations["claims_mismatch"] = [sorted(found - used), sorted(used - found)]
-    if hypothesis and not any(c.claim_type == "hypothesis_test" for c in ledger.claims()):
+    if hypothesis and not any(
+        c.claim_type == "hypothesis_test" and _cites_hypothesis_test(c, ledger)
+        for c in ledger.claims()
+    ):
         violations["missing_hypothesis_claim"] = []
 
     name = "Ledger completeness"
@@ -420,16 +533,31 @@ def run_gates(session: AnalysisSession, thresholds: GateThresholds) -> list[Gate
     G5 runs at ``submit_report`` (06 §4), not here.
     """
     pendulum = session.spec.experiment == "pendulum"
+    window, window_warnings = session.window_span()
     gates = [
-        gate_track(session.track, thresholds, min_points=session.min_points),
+        gate_track(
+            session.track,
+            thresholds,
+            min_points=session.min_points,
+            cycles=session.n_cycles,
+            window=window,
+            window_warnings=window_warnings,
+        ),  # fmt: skip
         gate_scale(session.calibration, thresholds, pendulum=pendulum),
     ]
-    if session.latest_fit_summary is not None:
-        gates.append(gate_fit(session.latest_fit_summary, thresholds))
+    fit = session.latest_fit_summary
+    if fit is not None:
+        analysis = session.analysis
+        period = getattr(analysis, "period", None)
+        duration = getattr(analysis, "duration_s", None)
+        gates.append(gate_fit(fit, thresholds, drift_px_s=session.drift_px_s,
+                              duration_s=duration, period_s=period))  # fmt: skip
     else:
         gates.append(_gate("G3", "Fit quality", "skipped", hard=False, diagnosis="no_analysis"))
     if session.g_value is not None:
-        gates.append(gate_plausibility(session.g_value, thresholds))
+        dw = float(fit["durbin_watson"]) if fit is not None else None
+        gates.append(gate_plausibility(session.g_value, thresholds, durbin_watson=dw,
+                                       free_fall=not pendulum))  # fmt: skip
     else:
         gates.append(_gate("G4", "Physical plausibility", "skipped", hard=False,
                            diagnosis="no_analysis"))  # fmt: skip

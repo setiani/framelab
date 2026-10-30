@@ -59,6 +59,7 @@ def context_message(s: AnalysisSession, fix_instructions: list[str] | None = Non
             "plausible_range_ms2": list(definition.plausible_range),
             "min_valid_points": definition.min_valid_points,
         },
+        "gate_thresholds": definition.gates.model_dump(),
         "track": s.track_summary(),
         "calibration": s.calibration_summary(),
         "evidence": evidence,
@@ -150,47 +151,82 @@ async def run(s: AnalysisSession, *, fix_instructions: list[str] | None = None) 
 # --------------------------------------------------------------------------------------------
 
 _TEXT = {
-    "en": {
-        "title": "Free-fall measurement",
-        "aim": "Measure the acceleration of a falling object from its video.",
-        "setup": "A falling object was filmed with a phone camera and tracked frame by frame.",
-        "method": (
-            "The fit window runs from release to the first impact. A quadratic fit of the "
-            "vertical position gives the acceleration. The scale comes from a reference in the "
-            "plane of motion, and the uncertainty comes from a bootstrap."
-        ),
-        "result": "Result",
-        "error": (
-            "The uncertainty combines the statistical spread, the spread from the choice of "
-            "window and the scale uncertainty. This report is a template: the agent could not "
-            "finish the analysis, so only the deterministic numbers are shown."
-        ),
-        "conclusion": (
-            "The measured acceleration and its uncertainty are given in the results above."
-        ),
-        "hypothesis": "Hypothesis test: {{%s}}.",
+    "free_fall": {
+        "en": {
+            "title": "Free-fall measurement",
+            "aim": "Measure the acceleration of a falling object from its video.",
+            "setup": "A falling object was filmed with a phone camera and tracked frame by frame.",
+            "method": (
+                "The fit window runs from release to the first impact. A quadratic fit of the "
+                "vertical position gives the acceleration. The scale comes from a reference in "
+                "the plane of motion, and the uncertainty comes from a bootstrap."
+            ),
+            "error": (
+                "The uncertainty combines the statistical spread, the spread from the choice of "
+                "window and the scale uncertainty. This report is a template: the agent could not "
+                "finish the analysis, so only the deterministic numbers are shown."
+            ),
+            "conclusion": "The measured acceleration and its uncertainty are given above.",
+        },
+        "id": {
+            "title": "Pengukuran jatuh bebas",
+            "aim": "Mengukur percepatan benda jatuh dari videonya.",
+            "setup": "Benda yang jatuh direkam dengan kamera ponsel dan dilacak frame demi frame.",
+            "method": (
+                "Jendela fit dimulai dari saat lepas hingga benturan pertama. Fit kuadratik pada "
+                "posisi vertikal memberi percepatan. Skala berasal dari referensi pada bidang "
+                "gerak, dan ketidakpastian dihitung dengan bootstrap."
+            ),
+            "error": (
+                "Ketidakpastian menggabungkan sebaran statistik, sebaran akibat pilihan jendela, "
+                "dan ketidakpastian skala. Laporan ini berbentuk templat: agen tidak menyelesaikan "
+                "analisis, sehingga hanya angka hasil deterministik yang ditampilkan."
+            ),
+            "conclusion": "Percepatan terukur dan ketidakpastiannya ada pada hasil di atas.",
+        },
     },
-    "id": {
-        "title": "Pengukuran jatuh bebas",
-        "aim": "Mengukur percepatan benda jatuh dari videonya.",
-        "setup": "Benda yang jatuh direkam dengan kamera ponsel dan dilacak frame demi frame.",
-        "method": (
-            "Jendela fit dimulai dari saat lepas hingga benturan pertama. Fit kuadratik pada "
-            "posisi "
-            "vertikal memberi percepatan. Skala berasal dari referensi pada bidang gerak, dan "
-            "ketidakpastian dihitung dengan bootstrap."
-        ),
-        "result": "Hasil",
-        "error": (
-            "Ketidakpastian menggabungkan sebaran statistik, sebaran akibat pilihan jendela, dan "
-            "ketidakpastian skala. Laporan ini berbentuk templat: agen tidak menyelesaikan "
-            "analisis, "
-            "sehingga hanya angka hasil deterministik yang ditampilkan."
-        ),
-        "conclusion": "Percepatan terukur dan ketidakpastiannya ada pada hasil di atas.",
-        "hypothesis": "Uji hipotesis: {{%s}}.",
+    "pendulum": {
+        "en": {
+            "title": "Pendulum measurement",
+            "aim": "Measure the period of a pendulum, and g when the string length is known.",
+            "setup": (
+                "A swinging pendulum was filmed with a phone camera and tracked frame by frame."
+            ),
+            "method": (
+                "A damped sine fit of the horizontal position gives the period. The period is "
+                "corrected for the swing amplitude, and g follows from the string length. The "
+                "uncertainty comes from a bootstrap and the length uncertainty."
+            ),
+            "error": (
+                "The uncertainty combines the statistical spread of the period, the amplitude "
+                "correction and the length uncertainty. This report is a template: the agent could "
+                "not finish the analysis, so only the deterministic numbers are shown."
+            ),
+            "conclusion": "The measured result and its uncertainty are given above.",
+        },
+        "id": {
+            "title": "Pengukuran bandul",
+            "aim": "Mengukur periode bandul, dan g bila panjang tali diketahui.",
+            "setup": (
+                "Bandul yang berayun direkam dengan kamera ponsel dan dilacak frame demi frame."
+            ),
+            "method": (
+                "Fit sinus teredam pada posisi horizontal memberi periode. Periode dikoreksi untuk "
+                "amplitudo ayunan, dan g dihitung dari panjang tali. Ketidakpastian berasal dari "
+                "bootstrap dan ketidakpastian panjang."
+            ),
+            "error": (
+                "Ketidakpastian menggabungkan sebaran statistik periode, koreksi amplitudo, dan "
+                "ketidakpastian panjang. Laporan ini berbentuk templat: agen tidak menyelesaikan "
+                "analisis, sehingga hanya angka hasil deterministik yang ditampilkan."
+            ),
+            "conclusion": "Hasil terukur dan ketidakpastiannya ada pada hasil di atas.",
+        },
     },
 }
+_RESULT = {"en": "Result", "id": "Hasil"}
+_HYP_TEXT = {"en": "Hypothesis test: {{%s}}.", "id": "Uji hipotesis: {{%s}}."}
+_SYMBOL = {"g": "g", "period": "T"}
 # Claim statements: the only place where the text may use the template fields.
 _COMPARISON = {
     "en": "Compared with the reference value, the difference is {rel_diff}.",
@@ -209,21 +245,28 @@ def fallback(s: AnalysisSession, *, steps: int) -> AnalystOutcome:
     if headline is None:
         raise analysis_auto.AnalysisError("the deterministic analysis produced no headline")
     lang = s.spec.language
-    text = _TEXT[lang]
+    text = _TEXT[s.spec.experiment][lang]
     ledger = s.ledger
-    claims = [
-        ledger.add_claim(
-            "derived", headline["evidence"], "g = {value}", "g = {value}", quantity="g"
-        ),
-        ledger.add_claim("comparison", headline["comparison_evidence"],
-                         _COMPARISON["en"], _COMPARISON["id"], quantity="g"),
-    ]  # fmt: skip
+    quantity = headline["quantity"]
+    statement = f"{_SYMBOL.get(quantity, quantity)} = {{value}}"
+    claims = [ledger.add_claim("derived", headline["evidence"], statement, statement,
+                               quantity=quantity)]  # fmt: skip
+    if headline.get("comparison_evidence"):
+        claims.append(
+            ledger.add_claim(
+                "comparison",
+                headline["comparison_evidence"],
+                _COMPARISON["en"],
+                _COMPARISON["id"],
+                quantity="g",
+            )
+        )
     hyp = None
-    pred = s.spec.hypothesis_prediction
-    if pred is not None and pred.si_unit() == "m/s^2":
-        hyp = ledger.add_claim("hypothesis_test", s.compare_hypothesis(headline["evidence"]),
-                               _HYPOTHESIS["en"], _HYPOTHESIS["id"], quantity="g")  # fmt: skip
+    if headline.get("hypothesis_evidence"):
+        hyp = ledger.add_claim("hypothesis_test", headline["hypothesis_evidence"],
+                               _HYPOTHESIS["en"], _HYPOTHESIS["id"])  # fmt: skip
         claims.append(hyp)
+    body_claims = [c for c in claims if c is not hyp]
     draft = ReportDraft(
         lang=lang,
         title=text["title"],
@@ -231,14 +274,14 @@ def fallback(s: AnalysisSession, *, steps: int) -> AnalystOutcome:
         setup=text["setup"],
         method=text["method"],
         results=[
-            {"heading": text["result"], "body": " ".join(f"{{{{{c.id}}}}}" for c in claims[:2])}
-        ],
-        hypothesis_evaluation=text["hypothesis"] % hyp.id if hyp is not None else None,
+            {"heading": _RESULT[lang], "body": " ".join(f"{{{{{c.id}}}}}" for c in body_claims)}
+        ],  # fmt: skip
+        hypothesis_evaluation=_HYP_TEXT[lang] % hyp.id if hyp is not None else None,
         error_analysis=text["error"],
         conclusion=text["conclusion"],
         claims_used=[c.id for c in claims],
     )
-    gate = gate_g5(draft, ledger, hypothesis=pred is not None and hyp is not None)
+    gate = gate_g5(draft, ledger, hypothesis=hyp is not None)
     if gate.status != "pass":  # the templates hold no numbers, so this would be a bug
         raise RuntimeError(f"fallback report failed G5: {gate.message_en}")
     write_json_atomic(s.ctx.run_dir / "draft_report.json", draft)

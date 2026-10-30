@@ -1,8 +1,13 @@
 """Orchestrator: executes the stages in order (docs/plan/04-pipeline-and-measurement.md §1).
 
-Implemented so far (M2–M5): INGESTING → TRANSCRIBING → PLANNING → SEGMENTING → MEASURING →
-ANALYZING: free fall by the Analyst agent (M6, deterministic fallback); pendulum and --no-planner
-deterministic (M3). Later stages raise until their milestone lands.
+INGESTING → TRANSCRIBING → PLANNING → SEGMENTING → MEASURING → ANALYZING ⇄ AUDITING (revise
+rounds) → DESIGNING → RENDERING → DONE. Free fall and pendulum both go through the Analyst agent
+(deterministic fallback); ``--no-planner`` runs stay deterministic and stop after ANALYZING.
+
+The final verdict is stored in ``state.json`` before DESIGNING and RENDERING, so the report, the
+overlay's end card and the recording-feedback page see it, and the report carries the Designer's
+next experiment (audit fix, 2026-10-30). Data that cannot support a measurement (no target, no
+scale, Planner stop) ends as NEEDS_RERECORD with a feedback page, not as FAILED (04 §1).
 
 Spec source: the Planner (default; Voice and Spark calls), or ``spec_override`` with
 ``--no-planner`` (flags only, no API calls for transcript or spec). ``overrides`` are typed flags
@@ -52,8 +57,8 @@ ORDER = [
     Stage.MEASURING,
     Stage.ANALYZING,
     Stage.AUDITING,
-    Stage.RENDERING,
     Stage.DESIGNING,
+    Stage.RENDERING,
 ]
 
 
@@ -143,8 +148,13 @@ async def execute_run(
                 # the clip offset is needed to read masks back in the overlay and in replays
                 write_json_atomic(ctx.run_dir / "ingest" / "ingest.json", ing)
         if stopped:
-            # 06 §2: unknown experiment or low confidence ends the run before measurement.
+            # 06 §2: unknown experiment or low confidence ends the run before measurement;
+            # 04 §1: skip to RENDERING with the recording-feedback page.
             ctx.emit("warning", message="Planner could not identify the experiment; re-record")
+            write_json_atomic(ctx.run_dir / "ingest" / "ingest.json", ing)
+            _store_verdict(ctx, _planner_stop_verdict(spec), None)
+            with ctx.stage(Stage.RENDERING):
+                _register_outputs(ctx, await asyncio.to_thread(outputs.render_outputs, ctx.run_dir))
             ctx.finish("NEEDS_RERECORD")
             return ctx.state
         if _reached(Stage.PLANNING, until):
@@ -177,42 +187,43 @@ async def execute_run(
             ctx.finish(None, partial=True)
             return ctx.state
 
-        if spec_override is None and spec.experiment == "free_fall":
-            review = await _review(ctx, spec, ing, seg, observations, summary, until)
-            if review.stopped_after_analyzing:
-                ctx.finish(None, review.headline, partial=True)
-                return ctx.state
-        else:
+        if spec_override is not None:
             with ctx.stage(Stage.ANALYZING):
-                # M3: deterministic analysis without an LLM: --no-planner and pendulum
+                # --no-planner: deterministic analysis without an LLM (M3/M4), no report
                 headline = analysis_auto.run(ctx, spec, ing, seg, observations, summary)
-            if _reached(
-                Stage.AUDITING, until
-            ):  # asked for a review or report: say why it cannot run
-                ctx.emit(
-                    "warning",
-                    message="No Auditor or report for this run (agent path is free fall)",
-                )
+            if _reached(Stage.AUDITING, until):  # asked for a review or report: say why not
+                ctx.emit("warning", message="No Auditor or report for --no-planner runs")
             ctx.finish(None, headline, partial=True)
             return ctx.state
 
+        try:
+            review = await _review(ctx, spec, ing, seg, observations, summary, until)
+        except analysis_auto.AnalysisError as exc:
+            review = _early_rerecord(ctx, spec, exc)
+        if review.stopped_after_analyzing:
+            ctx.finish(None, review.headline, partial=True)
+            return ctx.state
+        # The verdict is final here: store it before anything is rendered (audit fix).
+        _store_verdict(ctx, None, review)
+        headline = ctx.state.headline  # None unless PASS / PASS_WITH_WARNINGS (06 §8)
         if _reached(Stage.AUDITING, until):
-            ctx.finish(review.status, review.headline, partial=True)
+            ctx.finish(review.status, headline, partial=True)
+            return ctx.state
+        with ctx.stage(Stage.DESIGNING):
+            # 04 §1: only for PASS / PASS_WITH_WARNINGS; before RENDERING so the report has it
+            if review.status in PASSING and review.session is not None:
+                gate_warnings = [g.message_en for g in review.gates if g.status in ("warn", "fail")]
+                await designer.run(
+                    review.session, headline=review.headline, gate_warnings=gate_warnings
+                )
+        if _reached(Stage.DESIGNING, until):
+            ctx.finish(review.status, headline, partial=True)
             return ctx.state
         with ctx.stage(Stage.RENDERING):
             await _translate(ctx, review)
             rendered = await asyncio.to_thread(outputs.render_outputs, ctx.run_dir)
             _register_outputs(ctx, rendered)
-        if _reached(Stage.RENDERING, until):
-            ctx.finish(review.status, review.headline, partial=True)
-            return ctx.state
-        with ctx.stage(Stage.DESIGNING):
-            if review.status in PASSING:
-                gate_warnings = [g.message_en for g in review.gates if g.status in ("warn", "fail")]
-                await designer.run(
-                    review.session, headline=review.headline, gate_warnings=gate_warnings
-                )
-        ctx.finish(review.status, review.headline)
+        ctx.finish(review.status, headline)
         return ctx.state
     except Exception as exc:  # noqa: BLE001
         ctx.fail(exc)
@@ -226,7 +237,7 @@ PASSING = ("PASS", "PASS_WITH_WARNINGS")
 class Review:
     """Outcome of the Analyst, Auditor and revise rounds (04 §1, 06 §8)."""
 
-    session: AnalysisSession
+    session: AnalysisSession | None
     status: str | None
     headline: dict[str, Any] | None
     draft: ReportDraft | None
@@ -251,12 +262,15 @@ async def _review(
     draft: ReportDraft | None = None
     gates: list[GateResult] = []
     verdict: Verdict | None = None
+    used_fallback = False
+    outcome = None
     for round_ in range(ctx.settings.max_revise_rounds + 1):
         with ctx.stage(Stage.ANALYZING):
             if session is None:
                 session = session_mod.prepare(ctx, spec, ing, seg, observations, summary)
             session.round = round_
             outcome = await analyst.run(session, fix_instructions=fix)
+            used_fallback = used_fallback or outcome.fallback
             if outcome.fallback:
                 headline = ctx.state.headline
             else:
@@ -268,15 +282,28 @@ async def _review(
         with ctx.stage(Stage.AUDITING):
             gates = gates_mod.run_gates(session, thresholds)
             if outcome.kind == "rerecord":
-                verdict = auditor.rerecord_verdict(outcome.rerecord, gates)
+                verdict = await auditor.review_rerecord(
+                    session, outcome.rerecord, gates, round_=round_
+                )
             else:
                 verdict = await auditor.run(session, outcome.draft, gates, round_=round_)
         if verdict.status != "REJECT":
             break
         ctx.state.revise_rounds = round_ + 1
         fix = verdict.fix_instructions
-    assert verdict is not None  # the loop runs at least once
-    status, extra = auditor.finalize_verdict(verdict, gates)
+    assert verdict is not None and session is not None  # the loop runs at least once
+    if verdict.status == "REJECT" and not any(g.hard and g.status == "fail" for g in gates):
+        # Rounds are used up and only the text (G5) or a refused re-record request is left:
+        # the deterministic report replaces the text, so no unverified wording is printed.
+        last_is_text = outcome is not None and (outcome.kind == "rerecord" or any(
+            g == "G5" for g in verdict.gate_failures))  # fmt: skip
+        if last_is_text:
+            with ctx.stage(Stage.ANALYZING):
+                outcome = analyst.fallback(session, steps=0)
+                used_fallback = True
+                headline = ctx.state.headline
+                draft = outcome.draft
+    status, extra = auditor.finalize_verdict(verdict, gates, fallback=used_fallback)
     for message in extra:
         ctx.emit("warning", message=message)
     path = ctx.run_dir / "analysis" / "verdict.json"
@@ -284,7 +311,56 @@ async def _review(
     ctx.add_artifact("verdict", path, "application/json")
     ctx.emit("verdict", status=status, final=True, revise_rounds=ctx.state.revise_rounds)
     _slowmo_hint(ctx, gates)
+    if status not in PASSING:
+        draft = None  # NEEDS_RERECORD: the feedback page, not a lab report
     return Review(session, status, headline, draft, gates)
+
+
+def _store_verdict(ctx: RunContext, verdict: Verdict | None, review: Review | None) -> None:
+    """Write the final verdict to verdict.json (if given) and state.json before rendering."""
+    if verdict is not None:
+        path = ctx.run_dir / "analysis" / "verdict.json"
+        write_json_atomic(path, verdict)
+        ctx.add_artifact("verdict", path, "application/json")
+        ctx.emit("verdict", status=verdict.status, final=True, revise_rounds=0)
+        ctx.state.verdict = verdict.status  # type: ignore[assignment]
+    if review is not None:
+        ctx.state.verdict = review.status  # type: ignore[assignment]
+        ctx.state.headline = review.headline if review.status in PASSING else None
+    ctx.save()
+
+
+def _planner_stop_verdict(spec: ExperimentSpec) -> Verdict:
+    tips_en = [
+        "FrameLab could not recognise the experiment in this video. Film one free fall or "
+        "one swinging pendulum, with the whole motion in view, and say what you do."
+    ]
+    tips_id = ["FrameLab tidak dapat mengenali eksperimen di video ini. Rekam satu benda jatuh "
+               "atau satu bandul yang berayun, seluruh gerakan terlihat, dan ucapkan apa yang "
+               "Anda lakukan."]  # fmt: skip
+    return Verdict(status="NEEDS_RERECORD", rerecord_tips_en=tips_en + list(spec.warnings),
+                   rerecord_tips_id=tips_id, auditor_model="code",
+                   notes=f"Planner stop: experiment {spec.experiment}, "
+                   f"confidence {spec.confidence:.2f}")  # fmt: skip
+
+
+def _early_rerecord(ctx: RunContext, spec: ExperimentSpec, exc: Exception) -> Review:
+    """04 §1: no target or no scale → NEEDS_RERECORD with gate messages, not a crash."""
+    ledger = Ledger(ctx.run_dir / "analysis" / "ledger.jsonl")
+    diagnosis = getattr(exc, "diagnosis", "unusable_data")
+    if diagnosis == "no_scale":
+        gate = gates_mod.gate_scale(None, REGISTRY[spec.experiment].gates)
+    else:
+        gate = gates_mod.gate_no_target(spec.target_concept)
+    gate = gates_mod.record(ledger, gate, ctx.emit)
+    verdict = Verdict(status="NEEDS_RERECORD", gate_failures=[gate.gate],
+                      rerecord_tips_en=[gate.message_en], rerecord_tips_id=[gate.message_id],
+                      auditor_model="code", notes=f"stopped before analysis: {exc}")  # fmt: skip
+    path = ctx.run_dir / "analysis" / "verdict.json"
+    write_json_atomic(path, verdict)
+    ctx.add_artifact("verdict", path, "application/json")
+    ctx.emit("verdict", status="NEEDS_RERECORD", final=True, revise_rounds=0)
+    return Review(None, "NEEDS_RERECORD", None, None, [gate])
 
 
 def _slowmo_hint(ctx: RunContext, gates: list[GateResult]) -> None:
@@ -309,7 +385,7 @@ def _register_outputs(ctx: RunContext, rendered: outputs.RenderResult) -> None:
 
 async def _translate(ctx: RunContext, review: Review) -> None:
     """The draft in the other language (04 §9). Kept single-language if the check fails."""
-    if review.draft is None:
+    if review.draft is None or review.session is None:
         return
     dst: Lang = "id" if review.draft.lang == "en" else "en"
     translated, problem = await translator.translate(

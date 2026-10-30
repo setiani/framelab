@@ -33,12 +33,23 @@ TARGET_BGR = (255, 224, 0)
 REFERENCE_BGR = (0, 196, 255)
 OUTLIER_BGR = (40, 40, 220)
 TRAIL_LEN = 30
+VERDICT_TEXT = {
+    "PASS": {"en": "PASS", "id": "LULUS"},
+    "PASS_WITH_WARNINGS": {"en": "PASS WITH WARNINGS", "id": "LULUS DENGAN CATATAN"},
+    "NEEDS_RERECORD": {"en": "RECORD AGAIN", "id": "REKAM ULANG"},
+}
 END_CARD_S = 1.5
 FONT_PATH = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans.ttf"
-BUILT_WITH = {
-    "en": "Built with Meta SAM 3.1 · Muse Spark · Muse Wonder",
-    "id": "Dibangun dengan Meta SAM 3.1 · Muse Spark · Muse Wonder",
-}
+PIVOT_BGR = (255, 255, 255)
+
+
+def built_with(lang: str, auditor_model: str | None) -> str:
+    """The models this run used (Muse Wonder only when it was the Auditor)."""
+    models = ["Meta SAM 3.1", "Muse Spark"]
+    if auditor_model == "muse-wonder-1.0":
+        models.append("Muse Wonder")
+    lead = "Built with" if lang == "en" else "Dibangun dengan"
+    return f"{lead} " + " · ".join(models)
 
 
 def contours_of(record: Any, offset: int = 0) -> list[np.ndarray]:
@@ -114,14 +125,16 @@ def _trail(frame: np.ndarray, rows: list[TrackRow], m_frame: int) -> None:
             cv2.line(frame, (x - 5, y + 5), (x + 5, y - 5), OUTLIER_BGR, 2)
 
 
-def _card(frame: np.ndarray, headline: str, verdict: str, lang: str) -> np.ndarray:
+def _card(
+    frame: np.ndarray, headline: str, verdict: str, lang: str, auditor_model: str | None = None
+) -> np.ndarray:
     dark = (frame * 0.3).astype(np.uint8)
     h, w = frame.shape[:2]
     size = max(18, h // 14)
     image = Image.fromarray(cv2.cvtColor(dark, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(image)
     lines = [(headline, size * 2, (255, 255, 255)), (verdict, size, (255, 224, 0)),
-             (BUILT_WITH[lang], int(size * 0.7), (200, 200, 200))]  # fmt: skip
+             (built_with(lang, auditor_model), int(size * 0.7), (200, 200, 200))]  # fmt: skip
     y = int(h * 0.35)
     for text, s, color in lines:
         f = _font(s)
@@ -137,17 +150,23 @@ def render(run_dir: Path, out_path: Path) -> Path:
     ledger = Ledger(run_dir / "analysis" / "ledger.jsonl")
     lang = state.lang
     rows = view.track_rows(run_dir, ledger)
+    fit = view.primary_fit(ledger)
+    coord = "x" if fit is not None and fit.model == "damped_sine" else "y"
     m = view.scale_m_per_px(ledger)
-    if m is None:
+    if m is None and coord == "y":
         raise ValueError("no scale in the ledger: the HUD has no metres")
-    y0, y_m = view.relative_metres(rows, m)
+    metres = m is not None
+    y0, y_m = view.relative_metres(rows, m if m is not None else 1.0, coord)
     by_frame = {r.frame: (r, ym) for r, ym in zip(rows, y_m, strict=True)}
-    fit = view.fit_view(ledger, "quadratic")
+    pivot = view.pivot(ledger) if coord == "x" else None
     t_lo = fit.t_start if fit and fit.t_start is not None else -np.inf
     t_hi = fit.t_end if fit and fit.t_end is not None else np.inf
     targets, reference = load_masks(run_dir)
     headline = view.headline_text(ledger, lang)
-    verdict = state.verdict or ""
+    verdict_code = state.verdict or ""
+    verdict = VERDICT_TEXT.get(verdict_code, {}).get(lang, verdict_code)
+    verdict_file = run_dir / "analysis" / "verdict.json"
+    auditor_model = read_json(verdict_file).get("auditor_model") if verdict_file.is_file() else None
 
     video = run_dir / ing.video_path
     cap = cv2.VideoCapture(str(video))
@@ -179,17 +198,22 @@ def render(run_dir: Path, out_path: Path) -> Path:
             if hit is not None and t_lo - 1e-9 <= hit[0].t <= t_hi + 1e-9:
                 for poly in targets.get(idx, []):
                     cv2.polylines(frame, [poly], True, TARGET_BGR, 2)
+                if pivot is not None:  # 04 §8: pivot marker and the line pivot → bob
+                    p = (round(pivot["cx"]), round(pivot["cy"]))
+                    cv2.line(frame, p, (round(hit[0].x_px), round(hit[0].y_px)), PIVOT_BGR, 1)
+                    cv2.circle(frame, p, 5, PIVOT_BGR, -1)
                 _trail(frame, rows, idx)
                 t_s, y_s = hit[0].t, hit[1]
+                position = _fmt_m(y_s, lang) if metres else f"{y_s:.0f} px"
                 frame = _text_block(
                     frame,
-                    [f"t = {view.fmt_time(t_s, lang)}", f"y = {_fmt_m(y_s, lang)}", headline],
+                    [f"t = {view.fmt_time(t_s, lang)}", f"{coord} = {position}", headline],
                     x=12, y=12, size=max(14, height // 28),
                 )  # fmt: skip
             proc.stdin.write(frame.tobytes())
             last = frame
         card_frames = round(END_CARD_S * fps)
-        card = _card(last, headline, verdict, lang) if last is not None else None
+        card = _card(last, headline, verdict, lang, auditor_model) if last is not None else None
         for _ in range(card_frames if card is not None else 0):
             proc.stdin.write(card.tobytes())
     finally:

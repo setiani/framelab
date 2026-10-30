@@ -207,3 +207,24 @@ def analyze_free_fall(
         t_fit=tf,
         y_fit=yf,
     )
+
+
+def fall_time(
+    fit: FitResult, sigma_c2_rel: float, y_impact_px: float, sigma_y_px: float
+) -> tuple[float, float]:
+    """Time from release (the parabola's vertex, v = 0) to the impact height, and its σ.
+
+    t = √(Δy/c2) with Δy = y_impact − y_vertex in pixels, so the scale cancels: a student's
+    "it falls in about 0.45 s" can be tested without the ruler (05 §3.4 hypothesis helper).
+    σ_t/t = ½·√((σ_Δy/Δy)² + (σ_c2/c2)²); σ_c2/c2 is the statistical σ of g relative to g.
+    """
+    c0, c1, c2 = (fit.params[k] for k in ("c0", "c1", "c2"))
+    if c2 <= 0:
+        raise ValueError("the fit has no downward acceleration")
+    y_vertex = c0 - c1 * c1 / (4.0 * c2)
+    dy = y_impact_px - y_vertex
+    if dy <= 0:
+        raise ValueError("the impact is not below the release point")
+    value = float(np.sqrt(dy / c2))
+    rel = 0.5 * float(np.hypot(sigma_y_px / dy, sigma_c2_rel))
+    return value, value * rel

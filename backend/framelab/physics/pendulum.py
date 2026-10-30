@@ -278,3 +278,22 @@ def analyze_pendulum(
         t_fit=tw,
         x_fit=xw,
     )
+
+
+def g_with_length(
+    analysis: PendulumAnalysis, length_m: float, sigma_length_m: float
+) -> dict[str, Any]:
+    """g = 4π²L/T0² for a chosen length source, with the 05 §6.3 σ budget."""
+    g = g_from_pendulum(length_m, analysis.period0)
+    rel = math.sqrt(
+        (sigma_length_m / length_m) ** 2
+        + (2 * analysis.sigma_period / analysis.period) ** 2
+        + (2 * analysis.sigma_corr_rel) ** 2
+    )
+    sigma = g * rel
+    return {
+        "g": g,
+        "sigma": sigma,
+        "ci95": (g - 1.96 * sigma, g + 1.96 * sigma),
+        "g_uncorrected": g_from_pendulum(length_m, analysis.period),
+    }

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from framelab.agent.ledger import Ledger
-from framelab.pipeline import charts, overlay, report
+from framelab.pipeline import charts, overlay, report, view
 from framelab.schemas import RunState
 from framelab.store import read_json
 
@@ -37,9 +37,11 @@ def render_outputs(run_dir: Path, *, with_overlay: bool = True) -> RenderResult:
             return
         result.paths.update(produced)
 
-    attempt("charts", lambda: charts.write_trajectory(run_dir, ledger, state.lang))
-    attempt("data", lambda: {"data_csv": report.export_csv(run_dir)})
-    if with_overlay:
+    measured = view.primary_fit(ledger) is not None
+    if measured:  # a run stopped before any fit (no target, Planner stop) has only feedback
+        attempt("charts", lambda: charts.write_trajectory(run_dir, ledger, state.lang))
+        attempt("data", lambda: {"data_csv": report.export_csv(run_dir)})
+    if with_overlay and measured:
         attempt(
             "overlay",
             lambda: {"overlay": overlay.render(run_dir, run_dir / "outputs" / "overlay.mp4")},

@@ -176,13 +176,17 @@ async def _fit_model(s: AnalysisSession, a: dict[str, Any]) -> ToolResult:
 
 
 async def _bootstrap_ci(s: AnalysisSession, a: dict[str, Any]) -> ToolResult:
-    out = s.bootstrap(a["fit_id"], a.get("quantity", "g"))
+    default = "period" if s.pendulum else "g"
+    out = s.bootstrap(a["fit_id"], a.get("quantity", default))
+    excerpt = {"value": out["value"], "ci95": out["ci95"]}
+    if "n_cycles" in out:
+        excerpt["n_cycles"] = out["n_cycles"]
     return ToolResult(True, "bootstrap CI computed", evidence_ids=[out["ci_id"]],
-                      data_excerpt={"value": out["value"], "ci95": out["ci95"]})  # fmt: skip
+                      data_excerpt=excerpt, warnings=out.get("warnings", []))  # fmt: skip
 
 
 async def _derive(s: AnalysisSession, a: dict[str, Any]) -> ToolResult:
-    der_id = s.derive(a["quantity"], a["fit_id"], a["scale_id"])
+    der_id = s.derive(a["quantity"], a["fit_id"], a.get("scale_id"), a.get("length_source"))
     return ToolResult(True, f"{a['quantity']} derived", evidence_ids=[der_id])
 
 
@@ -230,6 +234,8 @@ async def _add_claim(s: AnalysisSession, a: dict[str, Any]) -> ToolResult:
         source = s.ledger.get(a["evidence_id"])
     except KeyError:
         return ToolResult(False, f"unknown evidence_id {a['evidence_id']!r}")
+    if a["claim_type"] == "hypothesis_test" and source.tool != "hypothesis_test":
+        return ToolResult(False, "a hypothesis_test claim must cite compare_hypothesis evidence")
     value, ci95, unit = copy_numbers(source)
     probe = Claim(
         id="c00", claim_type=a["claim_type"], quantity=a.get("quantity"), value=value,
@@ -256,7 +262,7 @@ async def _submit_report(s: AnalysisSession, a: dict[str, Any]) -> ToolResult:
     except ValidationError as exc:
         problems = [f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()][:5]
         return ToolResult(False, "report is not valid: " + "; ".join(problems))
-    gate = gates_mod.gate_g5(draft, s.ledger, hypothesis=s.spec.hypothesis_prediction is not None)
+    gate = gates_mod.gate_g5(draft, s.ledger, hypothesis=gates_mod.hypothesis_required(s.spec))
     ev = s.ledger.add_evidence("gate", "submit_report", gate.model_dump(mode="json"),
                                f"G5 {gate.status}")  # fmt: skip
     s.ctx.emit("gate_result", gate="G5", status=gate.status, evidence_id=ev.id)
@@ -320,13 +326,21 @@ TOOLS: dict[str, ToolSpec] = {
         ToolSpec(
             "calibrate_scale",
             "Compute the scale by one method and use it.",
-            _obj({"method": {"type": "string", "enum": ["ruler", "object_diameter"]}}, ["method"]),
+            _obj(
+                {
+                    "method": {
+                        "type": "string",
+                        "enum": ["ruler", "object_diameter", "spoken_length"],
+                    }
+                },
+                ["method"],
+            ),
             _calibrate_scale,
         ),  # fmt: skip
         ToolSpec(
             "set_fit_window",
-            "auto: release-to-impact window by event detection. manual: t_start "
-            "and t_end in seconds, inside the track.",
+            "auto: free fall = release-to-impact window by event detection; pendulum = the "
+            "whole swing with hand contact trimmed. manual: t_start and t_end in seconds.",
             _obj(
                 {
                     "mode": {"type": "string", "enum": ["auto", "manual"]},
@@ -344,7 +358,7 @@ TOOLS: dict[str, ToolSpec] = {
             _obj(
                 {
                     "window_id": _WINDOW_ID,
-                    "model": {"type": "string", "enum": ["quadratic", "cubic"]},
+                    "model": {"type": "string", "enum": ["quadratic", "cubic", "damped_sine"]},
                 },
                 ["window_id", "model"],
             ),
@@ -352,21 +366,31 @@ TOOLS: dict[str, ToolSpec] = {
         ),  # fmt: skip
         ToolSpec(
             "bootstrap_ci",
-            "Block bootstrap and error propagation for g. Needs a fit from this round.",
-            _obj({"fit_id": _FIT_ID, "quantity": {"type": "string", "enum": ["g"]}}, ["fit_id"]),
+            "Block bootstrap and error propagation: g (free fall, quadratic fit) or the "
+            "period (pendulum, damped_sine fit). Needs a fit from this round.",
+            _obj(
+                {"fit_id": _FIT_ID, "quantity": {"type": "string", "enum": ["g", "period"]}},
+                ["fit_id"],
+            ),  # fmt: skip
             _bootstrap_ci,
         ),  # fmt: skip
         ToolSpec(
             "derive",
-            "A physical quantity from the bootstrapped fit.",
+            "A physical quantity from the bootstrapped fit. Free fall: g and v0 need scale_id; "
+            "fall_time (release to impact, no scale needed). Pendulum: period (measured T), "
+            "period0 (amplitude-corrected), g (needs length_source: spoken or measured).",
             _obj(
                 {
-                    "quantity": {"type": "string", "enum": ["g", "v0"]},
+                    "quantity": {
+                        "type": "string",
+                        "enum": ["g", "v0", "fall_time", "period", "period0"],
+                    },
                     "fit_id": _FIT_ID,
                     "scale_id": _SCALE_ID,
+                    "length_source": {"type": "string", "enum": ["spoken", "measured"]},
                 },
-                ["quantity", "fit_id", "scale_id"],
-            ),
+                ["quantity", "fit_id"],
+            ),  # fmt: skip
             _derive,
         ),  # fmt: skip
         ToolSpec(
@@ -377,7 +401,8 @@ TOOLS: dict[str, ToolSpec] = {
         ),  # fmt: skip
         ToolSpec(
             "compare_hypothesis",
-            "Compare a derived value with the student's numeric prediction.",
+            "Compare a derived value with the student's numeric prediction (same unit: a "
+            "prediction in seconds needs fall_time or period, in m/s² needs g).",
             _obj({"derived_id": _DER_ID}, ["derived_id"]),
             _compare_hypothesis,
         ),  # fmt: skip

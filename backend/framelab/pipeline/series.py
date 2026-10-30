@@ -34,19 +34,30 @@ def run_point(store: RunStore, run_id: str) -> dict[str, Any]:
     if state.stage == Stage.FAILED or state.verdict in BAD_VERDICTS:
         raise SeriesError(f"{run_id}: run did not pass ({state.verdict or state.stage.value})")
     path = store.run_dir(run_id) / "analysis" / "pendulum.json"
-    if not path.is_file():
+    h = state.headline or {}
+    if path.is_file():  # deterministic path (--no-planner, Analyst fallback)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        point = {"L": data.get("length_m"), "sigma_L": data.get("sigma_length_m"),
+                 "T0": data.get("period0"), "sigma_T": data.get("sigma_period0"),
+                 "length_source": data.get("length_source"),
+                 "theta_mean_deg": data.get("theta_mean_deg")}  # fmt: skip
+    elif h.get("experiment") == "pendulum":  # agent path: the headline holds the same values
+        point = {"L": h.get("length_m"), "sigma_L": h.get("length_sigma_m"),
+                 "T0": h.get("period0"), "sigma_T": h.get("period0_sigma"),
+                 "length_source": h.get("length_source"),
+                 "theta_mean_deg": h.get("theta_mean_deg")}  # fmt: skip
+    else:
         raise SeriesError(f"{run_id}: no pendulum analysis yet")
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not data.get("length_m"):
+    if not point["L"]:
         raise SeriesError(f"{run_id}: string length unknown (needed for the series)")
     return {
         "run_id": run_id,
-        "L": float(data["length_m"]),
-        "sigma_L": float(data.get("sigma_length_m") or 0.0),
-        "T0": float(data["period0"]),
-        "sigma_T": float(data["sigma_period0"]),
-        "length_source": data.get("length_source"),
-        "theta_mean_deg": data.get("theta_mean_deg"),
+        "L": float(point["L"]),
+        "sigma_L": float(point["sigma_L"] or 0.0),
+        "T0": float(point["T0"]),
+        "sigma_T": float(point["sigma_T"]),
+        "length_source": point["length_source"],
+        "theta_mean_deg": point["theta_mean_deg"],
     }
 
 

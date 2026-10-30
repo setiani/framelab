@@ -17,7 +17,7 @@ from framelab.clients.sam import SamOutput
 from framelab.config import G_REF_DEFAULT
 from framelab.physics.derive import hypothesis_test
 from framelab.physics.experiments import REGISTRY
-from framelab.physics.freefall import analyze_free_fall
+from framelab.physics.freefall import analyze_free_fall, fall_time
 from framelab.physics.pendulum import analyze_pendulum
 from framelab.physics.uncertainty import fmt, fmt_pct
 from framelab.pipeline import calibrate, measure
@@ -35,7 +35,21 @@ from framelab.store import write_json_atomic
 
 
 class AnalysisError(RuntimeError):
-    """The data cannot support a measurement (becomes NEEDS_RERECORD from M7)."""
+    """The data cannot support a measurement: the run ends as NEEDS_RERECORD (04 §1)."""
+
+    diagnosis = "unusable_data"
+
+
+class NoTargetError(AnalysisError):
+    """SAM found no usable track of the target, even after the fallbacks."""
+
+    diagnosis = "no_target"
+
+
+class NoScaleError(AnalysisError):
+    """No scale reference (ruler, diameter) for an experiment that needs one."""
+
+    diagnosis = "no_scale"
 
 
 def reference_record(out: SamOutput | None) -> Any | None:
@@ -144,7 +158,7 @@ def build_track(
     target = summary.get("target") or {}
     obj = target.get("object_id")
     if not obj or seg.target is None:
-        raise AnalysisError(
+        raise NoTargetError(
             "No usable target track (re-record: brighter light, contrasting object)"
         )
     target_obs = [o for o in observations if o.concept == seg.target.concept and o.object_id == obj]
@@ -202,7 +216,7 @@ def run_free_fall(
 
     cal, cal_ids = calibrate_run(ctx, spec, ing, seg, target_obs, ledger)
     if cal is None:
-        raise AnalysisError(
+        raise NoScaleError(
             "No scale reference: put a ruler in the plane of motion or give the ball diameter"
         )
     if cal.agreement_pct is not None:
@@ -310,6 +324,42 @@ def run_free_fall(
         f"{'inside' if result.comparison['within_ci'] else 'outside'} the 95% CI)",
         [der.id],
     )
+    # fall time (release → impact): tests a student's prediction in seconds (05 §3.4)
+    fall_ev = None
+    impact = result.window.impact_index
+    if impact is not None:
+        try:
+            value, sigma = fall_time(
+                result.fit,
+                result.sigma_stat / result.g if result.g else 0.0,
+                float(y[int(impact)]),
+                max(1.0, result.fit.rms_px),
+            )
+        except ValueError:
+            value = sigma = None
+        if value is not None:
+            fall_ev = ledger.add_evidence(
+                "der", "derive",
+                {"quantity": "fall_time", "value": value, "unit": "s", "sigma": sigma,
+                 "ci95": [value - 1.96 * sigma, value + 1.96 * sigma],
+                 "formula": "t = √((y_impact − y_vertex)/c2), release at v = 0"},
+                f"fall time = {fmt(value, sigma, 's')}",
+                [fit.id, win.id, ci.id],
+            )  # fmt: skip
+    hyp = None
+    pred = spec.hypothesis_prediction
+    if pred is not None:
+        target = {"s": fall_ev, "m/s^2": der}.get(pred.si_unit())
+        if target is not None:
+            d = target.data
+            h = hypothesis_test(pred.to_si(), d["value"], d["ci95"][0], d["ci95"][1])
+            hyp = ledger.add_evidence(
+                "cmp", "hypothesis_test",
+                {**h, "quantity": d["quantity"], "unit": d["unit"], "statement": spec.hypothesis},
+                f"prediction {pred.value:g} {pred.unit} vs measured {d['value']:.4g} "
+                f"{d['unit']}: {h['outcome']}",
+                [target.id],
+            )  # fmt: skip
     for w in result.warnings:
         ctx.emit("warning", message=f"free-fall analysis: {w}")
 
@@ -330,6 +380,9 @@ def run_free_fall(
         "scale_method": cal.primary.method,
         "scale_agreement_pct": cal.agreement_pct,
         "fit_points": result.fit.n,
+        "fall_time_evidence": fall_ev.id if fall_ev else None,
+        "hypothesis_evidence": hyp.id if hyp else None,
+        "hypothesis_outcome": hyp.data["outcome"] if hyp else None,
     }
     ctx.state.headline = headline
     ctx.emit("progress", message=f"g = {headline['formatted_en']}")
@@ -347,22 +400,16 @@ def _string_top(seg: SegmentationOutput) -> tuple[float, float] | None:
     return calibrate.string_top_point(rec) if rec is not None else None
 
 
-def run_pendulum(
+def pendulum_pivot(
     ctx: RunContext,
     spec: ExperimentSpec,
-    ing: IngestResult,
     seg: SegmentationOutput,
-    observations: list[Observation],
-    summary: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Pendulum analysis end to end (05 §3, 04 §6.3): period, amplitude correction, g."""
-    ledger = Ledger(ctx.run_dir / "analysis" / "ledger.jsonl")
-    track, target_obs, trk_id, _target = build_track(ctx, ing, seg, observations, summary, ledger)
-    t, x, y = measure.valid_arrays(track)
-    if t.size < 12:
-        raise AnalysisError(f"Only {t.size} valid points: the bob was not tracked (re-record)")
-
-    # --- pivot, length, scale ----------------------------------------------------------------
+    track: Track,
+    ledger: Ledger,
+    trk_id: str,
+) -> tuple[dict[str, Any], str, list[ScaleEstimate]]:
+    """Pivot by circle fit (``cal_`` calibrate_pivot) and the spoken-length scale if any."""
+    _t, x, y = measure.valid_arrays(track)
     pivot = calibrate.pivot_from_track(x, y, string_top=_string_top(seg))
     for w in pivot["warnings"]:
         ctx.emit("warning", message=f"pivot: {w}")
@@ -378,17 +425,39 @@ def run_pendulum(
         ),
         [trk_id],
     )
+    extra: list[ScaleEstimate] = []
+    spoken = spec.spoken_params.get("string_length")
+    if spoken is not None and pivot.get("reliable"):
+        extra.append(
+            calibrate.spoken_length_scale(
+                spoken.to_si(), pivot["r_px"], pivot["sigma_r_px"],
+                length_sigma_m=SPOKEN_LENGTH_SIGMA_M,
+            )
+        )  # fmt: skip
+    return pivot, piv.id, extra
+
+
+def run_pendulum(
+    ctx: RunContext,
+    spec: ExperimentSpec,
+    ing: IngestResult,
+    seg: SegmentationOutput,
+    observations: list[Observation],
+    summary: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Pendulum analysis end to end (05 §3, 04 §6.3): period, amplitude correction, g."""
+    ledger = Ledger(ctx.run_dir / "analysis" / "ledger.jsonl")
+    track, target_obs, trk_id, _target = build_track(ctx, ing, seg, observations, summary, ledger)
+    t, x, y = measure.valid_arrays(track)
+    if t.size < 12:
+        raise NoTargetError(f"Only {t.size} valid points: the bob was not tracked (re-record)")
+
+    # --- pivot, length, scale ----------------------------------------------------------------
+    pivot, piv_id, extra = pendulum_pivot(ctx, spec, seg, track, ledger, trk_id)
     reliable = bool(pivot.get("reliable"))
     spoken = spec.spoken_params.get("string_length")
     spoken_l = spoken.to_si() if spoken else None
-    extra = []
-    if spoken_l and reliable:
-        extra.append(
-            calibrate.spoken_length_scale(
-                spoken_l, pivot["r_px"], pivot["sigma_r_px"], length_sigma_m=SPOKEN_LENGTH_SIGMA_M
-            )
-        )
-    cal, cal_ids = calibrate_run(ctx, spec, ing, seg, target_obs, ledger, extra, [piv.id])
+    cal, cal_ids = calibrate_run(ctx, spec, ing, seg, target_obs, ledger, extra, [piv_id])
 
     length_m = sigma_l = None
     length_source = None
@@ -400,7 +469,7 @@ def run_pendulum(
         length_m = pivot["r_px"] * s
         sigma_l = math.hypot(pivot["sigma_r_px"] * s, pivot["r_px"] * cal.primary.sigma_m_per_px)
         length_source = "measured"
-        length_inputs = [piv.id, cal_ids[cal.primary.method]]
+        length_inputs = [piv_id, cal_ids[cal.primary.method]]
     if length_m is None:
         ctx.emit(
             "warning",
@@ -467,7 +536,7 @@ def run_pendulum(
         f"T0 95% CI [{result.ci_period0[0]:.4f}, {result.ci_period0[1]:.4f}] s",
         [fit.id],
     )
-    theta_inputs = [piv.id] if result.theta_source == "circle_fit" else length_inputs
+    theta_inputs = [piv_id] if result.theta_source == "circle_fit" else length_inputs
     der_t = ledger.add_evidence(
         "der",
         "derive",

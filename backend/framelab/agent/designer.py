@@ -234,6 +234,9 @@ async def run(
     """Propose the next experiment. ``None`` if the Designer cannot give a valid proposal."""
     if headline is None:
         return None
+    if headline.get("quantity", "g") != "g":  # pendulum without a length: no g to predict with
+        session.ctx.emit("progress", message="designer skipped: no measured g to predict with")
+        return None
     experiment = session.spec.experiment
     g = float(headline["value"])
     try:

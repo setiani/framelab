@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from framelab.agent import narrative
-from framelab.agent.gates import gate_g5
+from framelab.agent.gates import gate_g5, hypothesis_required
 from framelab.clients import meta as meta_client
 from framelab.clients.meta import MetaClientError, strict_schema
 from framelab.config import MODEL_SPARK, MODEL_WONDER
@@ -65,7 +65,7 @@ class PreCheck:
 
 def pre_check(draft: ReportDraft, ledger: Ledger, gates: list[GateResult],
               spec: ExperimentSpec) -> PreCheck:  # fmt: skip
-    g5 = gate_g5(draft, ledger, hypothesis=spec.hypothesis_prediction is not None)
+    g5 = gate_g5(draft, ledger, hypothesis=hypothesis_required(spec))
     hard = [g for g in gates if g.hard and g.status == "fail"]
     if g5.status != "pass":
         hard.append(g5)
@@ -237,7 +237,10 @@ def post_check(
 
     if pre.hard_failures and status in ("PASS", "PASS_WITH_WARNINGS", "REJECT"):
         rerecord = any(g.remedy == "rerecord" for g in pre.hard_failures)
-        target = "NEEDS_RERECORD" if rerecord or not rounds_left else "REJECT"
+        # Only the text failed (G5) and no round is left: stay REJECT, so the orchestrator
+        # replaces the text with the deterministic report instead of asking for a new video.
+        text_only = all(g.gate == "G5" for g in pre.hard_failures)
+        target = "REJECT" if not rerecord and (rounds_left or text_only) else "NEEDS_RERECORD"
         if target != status:
             overrides.append(f"hard gates {hard_ids} failed: {status} → {target}")
         status = target
@@ -299,28 +302,90 @@ async def run(session: AnalysisSession, draft: ReportDraft, gates: list[GateResu
     return verdict
 
 
-def rerecord_verdict(request: RerecordRequest, gates: list[GateResult]) -> Verdict:
-    """The Analyst asked for a re-recording. There is no draft to audit, so the verdict is set
-    deterministically from its tips and the gate messages (06 §8)."""
+def rerecord_message(request: RerecordRequest, session: AnalysisSession,
+                     gates: list[GateResult]) -> str:  # fmt: skip
+    """What the Auditor sees when the Analyst stopped with request_rerecord (no draft)."""
+    spec = session.spec
+    gate_rows = [
+        f"{g.gate} {g.name}: {g.status} ({'hard' if g.hard else 'soft'}, remedy "
+        f"{g.remedy}, diagnosis {g.diagnosis}) — {g.message_en}"
+        for g in gates
+    ]
+    return "\n\n".join([
+        "THE ANALYST REQUESTED A RE-RECORDING instead of writing a report. Decide whether the data "
+        "really cannot support a measurement. Answer NEEDS_RERECORD if you agree. Answer REJECT "
+        "with fix_instructions if the gates and evidence show the data is usable and the Analyst "
+        "should finish the report.",
+        "REASONS: " + ", ".join(request.reasons),
+        "TIPS (EN): " + " | ".join(request.tips_en),
+        "GATES:\n" + "\n".join(gate_rows),
+        "EVIDENCE SUMMARIES:\n" + _evidence_block(session.ledger),
+        "SPEC:\n" + json.dumps({"experiment": spec.experiment, "warnings": spec.warnings,
+                                "setup_description": spec.setup_description},
+                               ensure_ascii=False),  # fmt: skip
+    ])  # fmt: skip
+
+
+async def review_rerecord(session: AnalysisSession, request: RerecordRequest,
+                          gates: list[GateResult], *, round_: int) -> Verdict:  # fmt: skip
+    """06 §4: request_rerecord is terminal for the Analyst, but the Auditor still reviews it.
+
+    A failed hard gate with remedy ``rerecord`` settles it in code. Otherwise the Auditor decides;
+    if it disagrees, the verdict is REJECT so the Analyst finishes the report in the next round.
+    """
     hard = [g for g in gates if g.hard and g.status == "fail"]
     msgs_en, msgs_id = _gate_messages(hard)
-    return Verdict(
-        status="NEEDS_RERECORD",
-        gate_failures=[g.gate for g in hard],
-        rerecord_tips_en=list(request.tips_en) + msgs_en,
-        rerecord_tips_id=list(request.tips_id) + msgs_id,
-        auditor_model="analyst",
-        notes="Analyst requested re-recording; no draft was audited.",
-    )  # fmt: skip
+    tips_en, tips_id = list(request.tips_en) + msgs_en, list(request.tips_id) + msgs_id
+    base = {"gate_failures": [g.gate for g in hard], "rerecord_tips_en": tips_en,
+            "rerecord_tips_id": tips_id}  # fmt: skip
+    if any(g.remedy == "rerecord" for g in hard):
+        verdict = Verdict(status="NEEDS_RERECORD", auditor_model="code",
+                          notes="Analyst requested re-recording; a hard gate with remedy rerecord "
+                          "failed, so code confirms it.", **base)  # fmt: skip
+    else:
+        try:
+            out, model = await ask(rerecord_message(request, session, gates), session)
+        except AuditorUnavailable as exc:
+            session.ctx.emit("warning", message=f"auditor_unavailable: {exc}")
+            out, model = None, "none"
+        if out is None or out.status == "NEEDS_RERECORD":
+            verdict = Verdict(status="NEEDS_RERECORD", auditor_model=model,
+                              notes=(out.notes if out else "auditor unavailable: the Analyst's "
+                                     "request stands"), **base)  # fmt: skip
+        else:
+            fixes = list(out.fix_instructions) or [
+                "The gates do not show a recording problem. Complete the analysis, add the "
+                "claims and submit the report."
+            ]
+            verdict = Verdict(
+                status="REJECT",
+                auditor_model=model,
+                fix_instructions=fixes,
+                gate_failures=[g.gate for g in hard],
+                notes=out.notes,
+                overrides=[f"re-recording request not confirmed ({out.status})"],
+            )
+    write_json_atomic(session.ctx.run_dir / "analysis" / f"verdict_r{round_:02d}.json", verdict)
+    session.ctx.emit("verdict", round=round_, status=verdict.status, model=verdict.auditor_model,
+                     overrides=verdict.overrides)  # fmt: skip
+    return verdict
 
 
-def finalize_verdict(auditor: Verdict, gates: list[GateResult]) -> tuple[str, list[str]]:
-    """Final status per 06 §8 (never REJECT at DONE) and extra warnings."""
+def finalize_verdict(
+    auditor: Verdict, gates: list[GateResult], *, fallback: bool = False
+) -> tuple[str, list[str]]:
+    """Final status per 06 §8 (never REJECT at DONE) and extra warnings.
+
+    A report from the deterministic fallback is at most PASS_WITH_WARNINGS (06 §3.4).
+    """
     warnings: list[str] = []
     hard_failed = [g for g in gates if g.hard and g.status == "fail"]
     if hard_failed:
         return "NEEDS_RERECORD", warnings
     if auditor.status == "REJECT":
         warnings.append("auditor_unresolved")
+        return "PASS_WITH_WARNINGS", warnings
+    if fallback and auditor.status == "PASS":
+        warnings.append("analyst_fallback: verdict capped at PASS_WITH_WARNINGS")
         return "PASS_WITH_WARNINGS", warnings
     return auditor.status, warnings
