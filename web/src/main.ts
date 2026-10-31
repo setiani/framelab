@@ -14,6 +14,7 @@ export interface View {
 }
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
+const health = getHealth(); // one request per page load, shared by the top bar and the footer
 let current: View | null = null;
 
 /** The mark: a viewfinder bracket around the tracked object (the overlay's cyan). */
@@ -34,7 +35,7 @@ function mark(): SVGSVGElement {
 function topbar(path: string): HTMLElement {
   const lang = getLang();
   const status = h("span.status", { role: "status" }, h("span.dot"), "…");
-  getHealth()
+  health
     .then((health) => {
       status.replaceChildren(h("span.dot.ok"), h("span.label", null, health.demo ? t("demo") : t("backend_ok")));
       status.title = `FrameLab ${health.version}`;
@@ -84,9 +85,11 @@ function route(): void {
   }
   document.documentElement.lang = getLang();
   const main = h("main", { id: "content" }, current.el);
-  const footer = h("footer.credits", null,
-    "Built with Meta SAM 3.1, Muse Spark 1.3 and Muse Voice Transcribe. "
-    + "Every number in a report is copied from evidence computed by code.");
+  // Muse Spark Open's license asks for "Built with Muse Spark Open" when the app uses it (S-3).
+  const credit = h("span", null, t("built_with"));
+  const footer = h("footer.credits", null, credit, " ", t("every_number"));
+  health.then((hl) => { if (hl.open_weights) credit.textContent = t("built_with_open"); })
+    .catch(() => undefined);
   app.replaceChildren(topbar(kind), main, footer);
   window.scrollTo({ top: 0 });
 }

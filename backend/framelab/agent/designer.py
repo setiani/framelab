@@ -5,6 +5,12 @@ Spec: docs/plan/06-agents-and-verification.md §6, §9.4; docs/plan/03-data-cont
 The model picks the variable and the test values through one tool call, ``predict``. Code
 computes every predicted value from the measured g and writes it to the ledger as ``pred_``
 evidence. The proposal's prediction texts refer to those values as ``{{p1}}``, ``{{p2}}``.
+
+S-3 (02 §10): with a Baseten key the Designer runs on Muse Spark Open, Meta's open-weight model.
+Baseten offers no structured outputs for it, so the proposal comes back through a
+``submit_proposal`` tool call (or, failing that, a JSON reply), validated by the same Pydantic
+model. If Spark Open fails, the step that failed is repeated on Muse Spark 1.3; the proposal
+records which models produced it, and only those are credited.
 """
 
 from __future__ import annotations
@@ -12,6 +18,8 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,9 +27,10 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from framelab.agent import narrative
 from framelab.agent.tools import ToolResult
+from framelab.clients import baseten as baseten_client
 from framelab.clients import meta as meta_client
 from framelab.clients.meta import MetaClientError, strict_schema
-from framelab.config import MODEL_SPARK
+from framelab.config import MODEL_SPARK, MODEL_SPARK_OPEN_BASETEN
 from framelab.physics.uncertainty import fmt
 from framelab.schemas import DesignerProposal, Quantity
 from framelab.store import write_json_atomic
@@ -71,6 +80,51 @@ class DesignerWire(BaseModel):
 
 class DesignerUnavailable(RuntimeError):
     """No usable proposal after the retries. The run keeps its verdict without a proposal."""
+
+
+@dataclass(frozen=True)
+class Provider:
+    """One way to reach a model: its client, and whether it supports json_schema output."""
+
+    model: str
+    label: str
+    structured: bool
+
+    @property
+    def chat(self) -> Callable[..., Awaitable[Any]]:
+        # Looked up at call time, so tests can replace the clients' ``chat``.
+        return meta_client.chat if self.structured else baseten_client.chat
+
+
+META = Provider(MODEL_SPARK, "Muse Spark 1.3", structured=True)
+SPARK_OPEN = Provider(MODEL_SPARK_OPEN_BASETEN, baseten_client.LABEL, structured=False)
+
+
+def providers(settings: Any) -> list[Provider]:
+    """Spark Open first when chosen (or "auto" with a Baseten key), Muse Spark 1.3 as fallback."""
+    choice = getattr(settings, "designer_backend", "meta")
+    has_key = bool(getattr(settings, "baseten_api_key", None))
+    if choice == "baseten" or (choice == "auto" and has_key):
+        return [SPARK_OPEN, META]
+    return [META]
+
+
+SUBMIT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "submit_proposal",
+        "description": "Submit the finished proposal. Prediction texts use the placeholders "
+        "{{p1}}, {{p2}}… only, never numbers.",
+        "parameters": strict_schema(DesignerWire),
+    },
+}
+
+
+def _json_from_text(text: str) -> str:
+    """The JSON object in a plain reply (models without JSON mode may add a fence or a line)."""
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    start, end = text.find("{"), text.rfind("}")
+    return text[start : end + 1] if 0 <= start < end else text
 
 
 def predict(experiment: str, changed_variable: str, values: list[float],
@@ -126,8 +180,9 @@ def render_text(text: str, predictions: list[dict[str, Any]], lang: str) -> str:
 
 
 async def _predict_step(
-    session: AnalysisSession, experiment: str, g: float, gate_warnings: list[str]
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    session: AnalysisSession, provider: Provider, experiment: str, g: float,
+    gate_warnings: list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:  # fmt: skip
     """Ask the model for one ``predict`` call, run it, write the ``pred_`` evidence.
 
     Returns the predictions and the conversation so far (the next step continues it).
@@ -145,9 +200,9 @@ async def _predict_step(
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
     ]
     for _ in range(MAX_ATTEMPTS):
-        resp = await meta_client.chat(model=MODEL_SPARK, messages=messages, tools=[PREDICT_TOOL],
-                                      reasoning_effort="low", purpose="designer",
-                                      emit=session.ctx.emit)  # fmt: skip
+        resp = await provider.chat(model=provider.model, messages=messages, tools=[PREDICT_TOOL],
+                                   reasoning_effort="low", purpose="designer",
+                                   emit=session.ctx.emit)  # fmt: skip
         msg = resp.choices[0].message
         calls = [c for c in (msg.tool_calls or []) if c.function.name == "predict"]
         if not calls:
@@ -181,24 +236,37 @@ async def _predict_step(
 
 
 async def _write_step(
-    session: AnalysisSession, messages: list[dict[str, Any]], predictions: list[dict[str, Any]]
-) -> DesignerWire:
+    session: AnalysisSession, provider: Provider, messages: list[dict[str, Any]],
+    predictions: list[dict[str, Any]],
+) -> DesignerWire:  # fmt: skip
     """The proposal text, validated: prediction texts only use {{pN}} and no bare numbers."""
-    messages = [*messages, {"role": "user", "content": "Write the proposal now as the JSON "
-                "object. Prediction texts use the placeholders {{p1}}, {{p2}}… only."}]  # fmt: skip
-    text_format = {"type": "json_schema", "json_schema": {
-        "name": "designer_proposal", "schema": strict_schema(DesignerWire), "strict": True,
-    }}  # fmt: skip
+    if provider.structured:
+        ask = "Write the proposal now as the JSON object."
+        options: dict[str, Any] = {"response_format": {"type": "json_schema", "json_schema": {
+            "name": "designer_proposal", "schema": strict_schema(DesignerWire), "strict": True,
+        }}}  # fmt: skip
+    else:
+        ask = "Submit the proposal now with the submit_proposal tool."
+        options = {"tools": [SUBMIT_TOOL]}
+    messages = [*messages, {"role": "user", "content": f"{ask} Prediction texts use the "
+                "placeholders {{p1}}, {{p2}}… only."}]  # fmt: skip
     for _ in range(MAX_ATTEMPTS):
-        resp = await meta_client.chat(
-            model=MODEL_SPARK,
+        resp = await provider.chat(
+            model=provider.model,
             messages=messages,
-            response_format=text_format,
             reasoning_effort="low",
             purpose="designer",
             emit=session.ctx.emit,
+            **options,
         )
-        content = resp.choices[0].message.content or ""
+        msg = resp.choices[0].message
+        submitted = [c for c in (msg.tool_calls or []) if c.function.name == "submit_proposal"]
+        if submitted:
+            content = submitted[0].function.arguments or ""
+        else:
+            content = msg.content or ""
+            if not provider.structured:
+                content = _json_from_text(content)
         try:
             wire = DesignerWire.model_validate_json(content)
         except ValidationError as exc:
@@ -207,13 +275,20 @@ async def _write_step(
             problem = _prediction_problem(wire, len(predictions))
             if not problem:
                 return wire
-        messages += [
-            {"role": "assistant", "content": content},
-            {
-                "role": "user",
-                "content": f"Invalid proposal: {problem}. Fix it and return the JSON.",
-            },
-        ]
+        fix = f"Invalid proposal: {problem}. Fix it and " + (
+            "return the JSON." if provider.structured else "call submit_proposal again."
+        )
+        if submitted:
+            call = submitted[0]
+            messages += [
+                {"role": "assistant", "content": "", "tool_calls": [{"id": call.id,
+                 "type": "function", "function": {"name": "submit_proposal",
+                                                  "arguments": call.function.arguments}}]},
+                {"role": "tool", "tool_call_id": call.id, "content": fix},
+            ]  # fmt: skip
+        else:
+            messages += [{"role": "assistant", "content": msg.content or ""},
+                         {"role": "user", "content": fix}]  # fmt: skip
     raise DesignerUnavailable("the proposal was invalid after the retry")
 
 
@@ -239,11 +314,27 @@ async def run(
         return None
     experiment = session.spec.experiment
     g = float(headline["value"])
-    try:
-        predictions, messages = await _predict_step(session, experiment, g, gate_warnings)
-        wire = await _write_step(session, messages, predictions)
-    except (DesignerUnavailable, MetaClientError) as exc:
-        session.ctx.emit("warning", message=f"designer unavailable: {exc}")
+    predictions: list[dict[str, Any]] | None = None
+    messages: list[dict[str, Any]] = []
+    used: list[str] = []
+    wire: DesignerWire | None = None
+    chain = providers(session.ctx.settings)
+    for i, provider in enumerate(chain):
+        try:
+            if predictions is None:
+                predictions, messages = await _predict_step(
+                    session, provider, experiment, g, gate_warnings
+                )
+                used.append(provider.model)
+            wire = await _write_step(session, provider, messages, predictions)
+            if provider.model not in used:
+                used.append(provider.model)
+            break
+        except (DesignerUnavailable, MetaClientError) as exc:
+            then = f"; trying {chain[i + 1].label}" if i + 1 < len(chain) else ""
+            session.ctx.emit("warning", message=f"designer on {provider.label} unavailable: "
+                             f"{exc}{then}")  # fmt: skip
+    if wire is None or predictions is None:
         return None
     values = [Quantity(value=p["input"], unit="m") for p in predictions]
     proposal = DesignerProposal(
@@ -258,6 +349,7 @@ async def run(
         safety_notes_en=wire.safety_notes_en,
         safety_notes_id=wire.safety_notes_id,
         predicted_values=[{"id": f"p{i}", **p} for i, p in enumerate(predictions, start=1)],
+        models=used,
     )  # fmt: skip
     write_json_atomic(session.ctx.run_dir / "analysis" / "designer.json", proposal)
     return proposal

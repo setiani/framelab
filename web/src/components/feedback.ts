@@ -14,7 +14,7 @@ export function feedbackCard(runId: string) {
     const otherTips = tips.filter((tip) => !messages.includes(tip));
     const slow = run.gates.find((g) => g.diagnosis === "slowmo_retimed");
     const k = slow ? Number(slow.metrics.slowmo_k) : 0;
-    const button = k
+    const button = k && !run.demo
       ? h("button.btn.primary", { type: "button", onclick: async (e: Event) => {
           (e.currentTarget as HTMLButtonElement).disabled = true;
           const res = await rerun(runId, { capture_fps: 30 * k });

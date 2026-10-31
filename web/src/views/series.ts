@@ -1,6 +1,6 @@
 // Series view (#/series and #/series/<id>), docs/plan/07 §4.4: pendulum runs at several lengths,
 // T₀² against L with the regression, g from the slope and the exponent of T ∝ L^n.
-import { addSeriesRun, analyzeSeries, createSeries, getSeries, listRuns, listSeries } from "../api";
+import { addSeriesRun, analyzeSeries, createSeries, getRun, getSeries, listRuns, listSeries } from "../api";
 import { plotly, restyle } from "../components/charts";
 import { headlineText, verdictChip } from "../components/common";
 import { gauge } from "../components/readout";
@@ -86,8 +86,10 @@ function seriesDetail(id: string): View {
   const chart = h("div.chart");
   const analyzeBtn = h("button.btn.primary", { type: "button" }, t("analyze"));
   const msg = h("div", { role: "alert" });
+  const readonly = h("div.banner", { hidden: true, role: "note" }, h("span.mark-dot"),
+    h("strong", null, t("sample_series")));
   const el = h("div.stack", null,
-    h("div.hero-copy", null, h("h1", null, t("series_title")), h("p.num.small.muted", null, id)),
+    h("div.hero-copy", null, h("h1", null, t("series_title")), h("p.num.small.muted", null, id), readonly),
     h("div.grid-2", null,
       h("section.panel", { "aria-labelledby": "sm" }, h("div.panel-head", null, h("h2#sm", null, t("members")), analyzeBtn),
         members, add, msg),
@@ -98,7 +100,12 @@ function seriesDetail(id: string): View {
 
   async function load(): Promise<void> {
     const [series, runs] = await Promise.all([getSeries(id), listRuns(200)]);
-    const byId = new Map(runs.map((r) => [r.run_id, r]));
+    const byId = new Map<string, RunState>(runs.map((r) => [r.run_id, r]));
+    // Members of a sample series are cached runs, which are not in the recent-runs list.
+    const missing = series.run_ids.filter((rid) => !byId.has(rid));
+    for (const r of await Promise.all(missing.map((rid) => getRun(rid).catch(() => null)))) {
+      if (r) byId.set(r.run_id, r);
+    }
     const rows = series.run_ids.map((rid) => {
       const r = byId.get(rid);
       const hl = r?.headline;
@@ -113,7 +120,9 @@ function seriesDetail(id: string): View {
           h("th", null, t("period0")), h("th", null, t("verdict")))), h("tbody", null, ...rows))
       : h("p.empty", null, t("series_empty")));
     const options = runs.filter((r) => usable(r) && !series.run_ids.includes(r.run_id));
-    if (options.length) {
+    readonly.hidden = !series.sample;
+    analyzeBtn.hidden = Boolean(series.sample);
+    if (options.length && !series.sample) {
       const select = h("select.input", { "aria-label": t("series_pick") },
         h("option", { value: "" }, t("series_pick")),
         ...options.map((r) => h("option", { value: r.run_id }, `${r.original_filename} (L ${fmt(Number(r.headline!.length_m), null, "m", lang)})`)));

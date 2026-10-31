@@ -6,6 +6,7 @@ import type {
   Ledger,
   RunDetail,
   RunState,
+  Sample,
   SeriesState,
   TrackView,
 } from "./types";
@@ -50,6 +51,10 @@ export const getLedger = (id: string) => request<Ledger>(`/api/runs/${id}/ledger
 export const getTrack = (id: string) => request<TrackView>(`/api/runs/${id}/track`);
 export const rerun = (id: string, body: { capture_fps?: number; lang?: string }) =>
   request<{ run_id: string }>(`/api/runs/${id}/rerun`, json(body));
+
+export const listSamples = () => request<Sample[]>("/api/samples");
+export const replaySample = (key: string) =>
+  request<{ run_id: string; replay_of: string }>(`/api/samples/${key}/replay`, { method: "POST" });
 
 export const listSeries = () => request<SeriesState[]>("/api/series");
 export const getSeries = (id: string) => request<SeriesState>(`/api/series/${id}`);

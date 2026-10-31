@@ -1,5 +1,5 @@
 // Run view (#/run/<id>), docs/plan/07 §4.3. One RunStore holds the latest state and the events.
-import { ApiError, getRun, getTrack, subscribe } from "../api";
+import { ApiError, getRun, getTrack, replaySample, subscribe } from "../api";
 import { chartsPanel } from "../components/charts";
 import { experimentLabel, verdictChip } from "../components/common";
 import { feedbackCard } from "../components/feedback";
@@ -10,7 +10,7 @@ import { downloadsPanel, gatesPanel, nextPanel } from "../components/sections";
 import { specCard } from "../components/spec";
 import { timeline } from "../components/timeline";
 import { trace } from "../components/trace";
-import { clear, h } from "../dom";
+import { clear, h, relativeTime } from "../dom";
 import { plain } from "../format";
 import { getLang, t } from "../i18n";
 import type { View } from "../main";
@@ -28,6 +28,7 @@ export function runView(runId: string): View {
   const meta = h("div.run-meta");
   const chip = h("span");
   const errorBox = h("div");
+  const banner = h("div");
   const tl = timeline();
   const play = player(runId);
   const result = readout();
@@ -42,7 +43,7 @@ export function runView(runId: string): View {
 
   const el = h("div", null,
     h("div.run-head", null, title, chip),
-    meta, h("div", { style: "height:14px" }), errorBox, tl.el,
+    meta, h("div", { style: "height:14px" }), banner, errorBox, tl.el,
     h("div.grid-2", null, play.el, h("div.stack", null, result.el, feedback.el, spec.el)),
     h("div", { style: "height:20px" }), charts.el,
     h("div", { style: "height:20px" }),
@@ -55,9 +56,10 @@ export function runView(runId: string): View {
     clear(chip, verdictChip(run));
     clear(meta,
       h("span", null, h("b", null, experimentLabel(run.experiment))),
-      h("span", null, `${t("cost")} `, h("b.num", null, `$${plain(run.cost_usd, 3, lang)}`)),
-      h("span.num.tiny", null, run.run_id),
-      run.demo ? h("span", null, t("sample_note")) : null);
+      h("span", null, `${run.demo ? t("cost_original") : t("cost")} `,
+        h("b.num", null, `$${plain(run.cost_usd, 3, lang)}`)),
+      h("span.num.tiny", null, run.run_id));
+    clear(banner, sampleBanner(run));
     clear(errorBox, run.stage === "failed"
       ? h("div.error-box", { style: "margin-bottom:16px" }, h("strong", null, t("error_title")), h("div.small", null, run.error ?? ""))
       : null);
@@ -80,6 +82,27 @@ export function runView(runId: string): View {
         play.update(run, trackFps);
       }).catch(() => undefined);
     }
+  }
+
+  function sampleBanner(run: RunDetail): HTMLElement | null {
+    if (run.replay_of) {
+      return h("div.banner", { role: "note" }, h("span.mark-dot"),
+        h("span", null, h("strong", null, t("sample_note")), " "),
+        h("a", { href: `#/run/${run.replay_of}` }, t("open_original")));
+    }
+    if (!run.sample) return null;
+    const watch = h("button.btn.small", { type: "button" }, t("watch_replay"));
+    watch.addEventListener("click", async () => {
+      watch.disabled = true;
+      try {
+        location.hash = `#/run/${(await replaySample(run.sample!)).run_id}`;
+      } catch {
+        watch.disabled = false;
+      }
+    });
+    return h("div.banner", { role: "note" }, h("span.mark-dot"),
+      h("span", null, h("strong", null, t("sample_banner")), " ",
+        h("span.muted", null, `${t("recorded")} ${relativeTime(run.created_at, lang)}`)), watch);
   }
 
   let timer: number | undefined;

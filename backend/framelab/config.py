@@ -37,15 +37,21 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FRAMELAB_", env_file=".env", extra="ignore")
 
     runs_dir: Path = Path("runs")
-    demo: bool = False
+    demo_dir: Path = Path("demo_runs")  # cached sample runs, read-only (07 §3)
+    demo: bool = False  # demo-only deployment: uploads off unless demo_allow_upload
     demo_allow_upload: bool = False
+    replay_ttl_hours: float = 6.0  # replay runs are deleted after this long
+    upload_limit_per_hour: int = 10  # per client address, uploads + re-runs (10 §2)
+    replay_limit_per_hour: int = 30  # per client address
+    forwarded_hops: int = 0  # proxies in front of the app that append to X-Forwarded-For
     max_upload_mb: int = 200
     max_analysis_s: float = 20.0
     max_long_edge_px: int = 960
     concurrency: int = 2
     use_wonder: bool = False  # M1: Wonder unreliable on structured tasks (docs/plan/02 §7)
     mask_dilation_px: float = 1.5  # M1: SAM masks ~1 px larger per side (docs/plan/04 §6.2)
-    designer_backend: Literal["meta", "baseten"] = "meta"
+    # S-3: "auto" = Muse Spark Open on Baseten when BASETEN_API_KEY is set, else Muse Spark 1.3
+    designer_backend: Literal["auto", "meta", "baseten"] = "auto"
     analyst_max_steps: int = 12
     max_revise_rounds: int = 2
     max_extra_sam_requests: int = 2

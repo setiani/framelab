@@ -111,7 +111,9 @@ class RunState(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
     artifacts: dict[str, str] = Field(default_factory=dict)  # logical name → path rel. to run dir
-    demo: bool = False
+    demo: bool = False  # a cached sample or a replay of one (no API calls when viewed)
+    sample: str | None = None  # sample key ("free_fall", "pendulum", "trap") of a cached run
+    replay_of: str | None = None  # the cached run this replay re-emits (07 §3)
 
 
 # --------------------------------------------------------------------------------------------
@@ -401,6 +403,7 @@ class DesignerProposal(BaseModel):
     safety_notes_en: list[str] = Field(default_factory=list)
     safety_notes_id: list[str] = Field(default_factory=list)
     predicted_values: list[dict[str, Any]] = Field(default_factory=list)  # filled by code
+    models: list[str] = Field(default_factory=list)  # models that produced it (S-3 credit)
 
 
 # --------------------------------------------------------------------------------------------

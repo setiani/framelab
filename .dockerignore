@@ -1,0 +1,23 @@
+# Keep secrets, local data and build output out of the image.
+.env
+*.env.local
+.git
+.github
+.venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.pytest_tmp
+.ruff_cache
+runs
+debug
+docs
+docs-*.zip
+CLAUDE.md
+samples/*.mp4
+samples/*.mov
+eval/results*
+scripts/spikes/out
+web/node_modules
+web/dist
+**/.DS_Store

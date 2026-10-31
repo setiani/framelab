@@ -32,5 +32,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install
+      - run: npm ci
+      - run: npm test
       - run: npm run build
+
+  docker:
+    # The deployment image (M11): build it and check that it starts and serves the app.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t framelab .
+      - name: Smoke test (no API key: samples only)
+        run: |
+          docker run -d --name fl -p 8000:8000 framelab
+          for i in $(seq 1 30); do curl -fsS localhost:8000/api/health && break; sleep 2; done
+          curl -fsS localhost:8000/api/health | grep '"ok":true'
+          curl -fsS localhost:8000/ | grep -i '<div id="app"'
+          curl -fsS localhost:8000/api/samples
+          docker exec fl python -c "from playwright.sync_api import sync_playwright as s; b = s().start().chromium.launch(); print('chromium ok'); b.close()"
+          docker logs fl

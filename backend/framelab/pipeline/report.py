@@ -22,6 +22,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from framelab.agent import narrative
 from framelab.agent.designer import render_text as render_prediction
 from framelab.agent.ledger import Ledger
+from framelab.config import MODEL_SPARK, MODEL_SPARK_OPEN_BASETEN
 from framelab.physics.uncertainty import fmt
 from framelab.pipeline import overlay, view
 from framelab.schemas import IngestResult, ReportDraft, RunState
@@ -131,18 +132,30 @@ def data_sample(run_dir: Path, lang: str, rows: int = 25) -> list[dict[str, str]
              "valid": r["valid"], "flag": r["flag"]} for r in reader[::step]]  # fmt: skip
 
 
-def models_used(state: RunState, verdict: dict[str, Any] | None) -> list[dict[str, str]]:
+def models_used(
+    state: RunState, verdict: dict[str, Any] | None, designer: list[str] | None = None
+) -> list[dict[str, str]]:
     """Which model did what in this run, from the run's own records."""
     auditor = (verdict or {}).get("auditor_model") or "—"
-    return [
+    designer = designer or []
+    open_designer = MODEL_SPARK_OPEN_BASETEN in designer
+    spark_roles = "Planner, Analyst, Auditor, Translator"
+    if not open_designer:
+        spark_roles += ", Designer"
+    elif MODEL_SPARK in designer:  # Spark Open failed one step; Muse Spark 1.3 finished it
+        spark_roles += ", Designer (fallback)"
+    rows = [
         {"role": "Muse Voice Transcribe", "use": "speech → transcript"},
-        {"role": "Muse Spark 1.3", "use": "Planner, Analyst, Auditor, Designer, Translator"},
+        {"role": "Muse Spark 1.3", "use": spark_roles},
         {"role": "SAM 3.1", "use": "object tracking on the video and the ruler"},
         {
             "role": "Muse Wonder 1.0",
             "use": "not used in this run" if auditor != "muse-wonder-1.0" else "Auditor",
         },  # fmt: skip
     ]
+    if open_designer:
+        rows.append({"role": "Muse Spark Open (open weights, via Baseten)", "use": "Designer"})
+    return rows
 
 
 def next_experiment(run_dir: Path, lang: str) -> dict[str, Any] | None:
@@ -218,13 +231,15 @@ def render_html(run_dir: Path, draft: ReportDraft, state: RunState, ledger: Ledg
         "conclusion": render_text(draft.conclusion, ledger, lang),
         "figure": figure,
         "keyframe": keyframe_uri(run_dir),
-        "models": models_used(state, verdict),
+        "models": models_used(state, verdict, overlay.designer_models(run_dir)),
         "gates": gates_table(ledger, lang),
         "claims": claims_table(ledger, lang),
         "sample": data_sample(run_dir, lang),
         "next": next_experiment(run_dir, lang),
         "auditor_model": (verdict or {}).get("auditor_model", ""),
-        "built": overlay.built_with(lang, (verdict or {}).get("auditor_model")),
+        "built": overlay.built_with(
+            lang, (verdict or {}).get("auditor_model"), overlay.designer_models(run_dir)
+        ),
     }
     return _env().get_template("report.html.j2").render(**context)
 

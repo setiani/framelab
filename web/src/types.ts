@@ -8,7 +8,23 @@ export interface Health {
   demo: boolean;
   ffmpeg: boolean;
   api_key_configured: boolean;
+  uploads: { enabled: boolean; reason: "demo_mode" | "no_api_key" | "daily_budget" | null; message: string | null };
+  samples: number;
   models: Record<string, string>;
+  open_weights: boolean;
+}
+
+/** A "Try a sample" card: a cached run (docs/plan/07 §3). */
+export interface Sample {
+  key: string;
+  run_id: string;
+  title: Record<Lang, string>;
+  blurb: Record<Lang, string>;
+  experiment: ExperimentType | null;
+  verdict: VerdictStatus | null;
+  headline: Headline | null;
+  original_filename: string;
+  recorded_at: string;
 }
 
 export type Stage =
@@ -59,6 +75,8 @@ export interface RunState {
   error: string | null;
   artifacts: Record<string, string>;
   demo: boolean;
+  sample: string | null;
+  replay_of: string | null;
 }
 
 export interface Quantity {
@@ -167,6 +185,7 @@ export interface DesignerProposal {
   safety_notes_en: string[];
   safety_notes_id: string[];
   predicted_values: { id: string; input: number; predicted: number; unit_out: string }[];
+  models?: string[];
 }
 
 /** GET /api/runs/{id}: RunState plus what the run view needs (07 §1). */
@@ -208,6 +227,7 @@ export interface SeriesState {
   status: "collecting" | "analyzing" | "done" | "failed";
   headline: Record<string, unknown> | null;
   results?: SeriesResult | null;
+  sample?: boolean;
 }
 
 export interface SeriesPoint {

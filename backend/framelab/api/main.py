@@ -26,8 +26,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from framelab import __version__
+from framelab.agent.designer import SPARK_OPEN
+from framelab.agent.designer import providers as designer_providers
 from framelab.agent.ledger import Ledger
-from framelab.api import sse
+from framelab.api import demo, sse
+from framelab.api.limits import RateLimiter, client_address, retry_minutes, upload_status
 from framelab.config import (
     MODEL_IMAGE,
     MODEL_SAM,
@@ -65,6 +68,12 @@ class ApiError(Exception):
         self.status = status
         self.code = code
         self.message = message
+
+
+class RateLimited(Exception):
+    def __init__(self, message: str, retry_after_s: float) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
 
 
 class RerunBody(BaseModel):
@@ -124,7 +133,9 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
     app = FastAPI(title="FrameLab", version=__version__)
     app.state.settings = settings
     app.state.runner = runner or default_runner
-    app.state.store = RunStore(settings.runs_dir)
+    app.state.store = RunStore(settings.runs_dir, sample_root=settings.demo_dir)
+    app.state.limiter = RateLimiter()
+    needs_key = runner is None  # tests pass a fake runner that calls no model
     app.state.bus = EventBus(settings.runs_dir)
     app.state.tasks: dict[str, asyncio.Task] = {}
     app.state.semaphore: asyncio.Semaphore | None = None
@@ -142,6 +153,14 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
     async def _api_error(_: Request, exc: ApiError) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status, content={"error": {"code": exc.code, "message": exc.message}}
+        )
+
+    @app.exception_handler(RateLimited)
+    async def _limited(_: Request, exc: RateLimited) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(int(exc.retry_after_s))},
+            content={"error": {"code": "rate_limited", "message": str(exc)}},
         )
 
     @app.exception_handler(RunNotFoundError)
@@ -198,6 +217,30 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
     def _discard(run_id: str) -> None:
         shutil.rmtree(store.run_dir(run_id), ignore_errors=True)
 
+    def _guard_live(request: Request) -> None:
+        """Uploads and re-runs spend credits: refuse them when paused or over the rate limit."""
+        status = upload_status(settings, store, needs_key=needs_key)
+        if not status.enabled:
+            code = status.reason or "uploads_paused"
+            raise ApiError(403 if code == "demo_mode" else 503, code, status.message or "")
+        _rate_limit(request, "upload", settings.upload_limit_per_hour, "live runs")
+
+    def _rate_limit(request: Request, bucket: str, limit: int, what: str) -> None:
+        wait = app.state.limiter.hit(bucket, client_address(request, settings.forwarded_hops),
+                                     limit)  # fmt: skip
+        if wait is not None:
+            raise RateLimited(
+                f"limit reached: {limit} {what} per hour from one address; "
+                f"try again in {retry_minutes(wait)} min",
+                wait,
+            )
+
+    def _refuse_cached(run_id: str, action: str) -> None:
+        """Samples are read-only and replays are copies: neither can be re-run or join a series."""
+        state = store.load_state(run_id)
+        if store.is_sample(run_id) or state.replay_of is not None:
+            raise ApiError(409, "sample_run", f"sample runs cannot {action}")
+
     # --- health ------------------------------------------------------------------------------
     @app.get("/api/health")
     def health() -> dict:
@@ -207,26 +250,30 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
             "demo": settings.demo,
             "ffmpeg": shutil.which("ffmpeg") is not None,
             "api_key_configured": bool(settings.model_api_key),
+            "uploads": upload_status(settings, store, needs_key=needs_key).public(),
+            "samples": len(demo.load_samples(store)),
             "models": {
                 "spark": MODEL_SPARK,
                 "wonder": MODEL_WONDER if settings.use_wonder else MODEL_SPARK,
                 "sam": MODEL_SAM,
                 "voice": MODEL_VOICE,
                 "image": MODEL_IMAGE,
+                "designer": designer_providers(settings)[0].model,
             },
+            "open_weights": designer_providers(settings)[0] == SPARK_OPEN,
         }
 
     # --- runs --------------------------------------------------------------------------------
     @app.post("/api/runs", status_code=201)
     async def create_run(
+        request: Request,
         video: UploadFile = File(...),
         lang: str = Form("id"),
         capture_fps: int | None = Form(None),
         series_id: str | None = Form(None),
         note: str | None = Form(None),
     ) -> dict:
-        if settings.demo and not settings.demo_allow_upload:
-            raise ApiError(403, "demo_mode", "uploads are disabled in demo mode")
+        _guard_live(request)
         if lang not in ("id", "en"):
             raise ApiError(422, "invalid_lang", "lang must be id or en")
         if note is not None and len(note) > 300:
@@ -244,7 +291,6 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
             capture_fps=capture_fps,
             note=note,
             series_id=series_id,
-            demo=settings.demo,
         )
         target = store.input_video_path(state.run_id)
         try:
@@ -366,8 +412,10 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
         return FileResponse(path)
 
     @app.post("/api/runs/{run_id}/rerun", status_code=201)
-    async def rerun(run_id: str, body: RerunBody | None = None) -> dict:
+    async def rerun(request: Request, run_id: str, body: RerunBody | None = None) -> dict:
         body = body or RerunBody()
+        _refuse_cached(run_id, "be re-run")
+        _guard_live(request)
         if body.lang is not None and body.lang not in ("id", "en"):
             raise ApiError(422, "invalid_lang", "lang must be id or en")
         if body.capture_fps is not None and not 1 <= body.capture_fps <= 1000:
@@ -381,6 +429,8 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
     def create_series(body: SeriesCreate) -> dict:
         if body.experiment != "pendulum":
             raise ApiError(422, "invalid_experiment", "series are for the pendulum")
+        for rid in body.run_ids:
+            _refuse_cached(rid, "join a series")
         try:
             series = series_mod.create(store, body.run_ids)
         except series_mod.SeriesError as exc:
@@ -389,6 +439,8 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
 
     @app.post("/api/series/{series_id}/runs")
     def add_series_run(series_id: str, body: SeriesRun) -> dict:
+        _refuse_cached_series(series_id)
+        _refuse_cached(body.run_id, "join a series")
         try:
             series = series_mod.add_run(store, series_id, body.run_id)
         except series_mod.SeriesError as exc:
@@ -398,6 +450,7 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
     @app.post("/api/series/{series_id}/analyze", status_code=202)
     async def analyze_series(series_id: str) -> dict:
         store.load_series(series_id)
+        _refuse_cached_series(series_id)
 
         async def job() -> None:
             with contextlib.suppress(series_mod.SeriesError):  # the series keeps the reason
@@ -406,15 +459,24 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
         _spawn(f"series:{series_id}", job)
         return {"series_id": series_id, "status": "analyzing"}
 
+    def _is_sample_series(series_id: str) -> bool:
+        root = store.sample_root
+        return root is not None and store.series_dir(series_id).is_relative_to(root)
+
+    def _refuse_cached_series(series_id: str) -> None:
+        store.load_series(series_id)
+        if _is_sample_series(series_id):
+            raise ApiError(409, "sample_series", "sample series are read-only")
+
     @app.get("/api/series")
     def list_series(limit: int = 20) -> list[dict]:
-        root = store.root / "series"
         items = []
-        for path in root.glob("s_*/series.json") if root.is_dir() else []:
-            try:
-                items.append(read_json(path))
-            except ValueError:
-                continue
+        for root in store.series_roots():
+            for path in root.glob("s_*/series.json"):
+                try:
+                    items.append(read_json(path) | {"sample": root != store.root / "series"})
+                except ValueError:
+                    continue
         items.sort(key=lambda s: s.get("created_at", ""), reverse=True)
         return items[: max(1, min(limit, 200))]
 
@@ -424,7 +486,27 @@ def create_app(settings: Settings | None = None, runner: Runner | None = None) -
         body: dict[str, Any] = series.model_dump(mode="json")
         result = store.series_dir(series_id) / "analysis" / "series.json"
         body["results"] = read_json(result) if result.is_file() else None
+        body["sample"] = _is_sample_series(series_id)
         return body
+
+    # --- samples and replays (M11, 07 §3) ----------------------------------------------------
+    @app.get("/api/samples")
+    def list_samples() -> list[dict]:
+        return [s.public() for s in demo.load_samples(store)]
+
+    @app.post("/api/samples/{key}/replay", status_code=201)
+    async def replay_sample(key: str, request: Request) -> dict:
+        try:
+            sample = demo.find_sample(store, key)
+        except demo.SampleError as exc:
+            raise ApiError(404, "not_found", str(exc)) from exc
+        _rate_limit(request, "replay", settings.replay_limit_per_hour, "replays")
+        demo.cleanup_replays(store, settings.replay_ttl_hours, set(app.state.tasks))
+        state = demo.create_replay(store, sample)
+        task = asyncio.create_task(demo.run_replay(store, bus, state.run_id))
+        app.state.tasks[state.run_id] = task
+        task.add_done_callback(lambda t: _finished(state.run_id, t))
+        return {"run_id": state.run_id, "replay_of": sample.run_id}
 
     # --- static web app (M10) ----------------------------------------------------------------
     if WEB_DIST.is_dir():

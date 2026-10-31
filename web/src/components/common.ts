@@ -33,8 +33,17 @@ export function guideDialog(): HTMLDialogElement {
   return dlg;
 }
 
+/** A backend error code shown in the interface language (the server's text otherwise). */
+export function errorText(code: string, fallback: string): string {
+  const known: Record<string, Key> = {
+    demo_mode: "up_demo_mode", no_api_key: "up_no_api_key", daily_budget: "up_daily_budget",
+    rate_limited: "up_rate_limited",
+  };
+  return known[code] ? t(known[code]) : fallback;
+}
+
 /** The headline as shown in lists: the backend's fmt string in the UI language. */
-export function headlineText(state: RunState): string {
+export function headlineText(state: Pick<RunState, "headline">): string {
   const hl = state.headline;
   if (!hl) return "";
   const symbol = hl.quantity === "period" ? "T" : hl.quantity;

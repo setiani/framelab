@@ -1,10 +1,10 @@
-// Upload view (#/): hero, upload form, recent runs, recording guide (docs/plan/07 §4.2).
-import { createRun, listRuns } from "../api";
-import { experimentLabel, guideDialog, headlineText, verdictChip } from "../components/common";
+// Upload view (#/): hero, upload form, samples, recent runs, recording guide (docs/plan/07 §4.2).
+import { ApiError, artifactUrl, createRun, getHealth, listRuns, listSamples, replaySample } from "../api";
+import { errorText, experimentLabel, guideDialog, headlineText, verdictChip } from "../components/common";
 import { clear, h, relativeTime } from "../dom";
 import { getLang, t } from "../i18n";
 import type { View } from "../main";
-import type { RunState } from "../types";
+import type { Health, RunState, Sample } from "../types";
 
 function hero(): HTMLElement {
   const video = h("video", {
@@ -66,15 +66,34 @@ function uploadForm(): HTMLElement {
   const message = h("div", { role: "alert" });
   const submit = h("button.btn.primary", { type: "submit", disabled: true }, t("start"));
   const dlg = guideDialog();
+  const paused = h("div.notice", { hidden: true, role: "status" });
+  const fields = h("fieldset.plain");
 
   const form = h("form.panel.stack", { "aria-labelledby": "upload-title" },
     h("div.panel-head", null, h("h2#upload-title", null, t("upload_title")),
       h("button.btn.small", { type: "button", onclick: () => dlg.showModal() }, t("how_to_record"))),
-    drop, fileInput,
+    paused, fields);
+  fields.append(drop, fileInput,
     h("div.field", null, h("span", null, t("lang_label")), langSeg),
     h("label.field", { for: "fps" }, h("span", null, t("fps_label")), fps),
     h("label.field", { for: "note" }, h("span", null, t("note_label")), note),
-    progress, message, submit, dlg);
+    progress, message, submit);
+  form.append(dlg);
+
+  // Live uploads can be off (demo, no API key, daily budget): say so instead of failing later.
+  getHealth().then((health: Health) => {
+    const up = health.uploads;
+    if (!up || up.enabled) return;
+    fields.disabled = true;
+    drop.classList.add("off");
+    paused.hidden = false;
+    const toSamples = h("button.btn.small", { type: "button", onclick: () =>
+      document.getElementById("samples-title")?.scrollIntoView({ behavior: "smooth", block: "start" }) },
+      t("see_samples"));
+    clear(paused, h("strong", null, t("uploads_off")),
+      h("span", null, errorText(up.reason ?? "", up.message ?? "")),
+      health.samples ? h("div", null, toSamples) : null);
+  }).catch(() => undefined);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -93,7 +112,8 @@ function uploadForm(): HTMLElement {
     } catch (err) {
       progress.hidden = true;
       submit.disabled = false;
-      clear(message, h("div.error-box", null, (err as Error).message));
+      const e = err as ApiError;
+      clear(message, h("div.error-box", null, errorText(e.code ?? "", e.message)));
     }
   });
   return form;
@@ -129,9 +149,56 @@ function runsTable(runs: RunState[]): HTMLElement {
     h("tbody", null, ...rows));
 }
 
+function sampleCard(sample: Sample): HTMLElement {
+  const lang = getLang();
+  const message = h("div.small", { role: "alert" });
+  const watch = h("button.btn.primary.small", { type: "button" }, t("watch_replay"));
+  watch.addEventListener("click", async () => {
+    watch.disabled = true;
+    try {
+      const res = await replaySample(sample.key);
+      location.hash = `#/run/${res.run_id}`;
+    } catch (err) {
+      watch.disabled = false;
+      const e = err as ApiError;
+      clear(message, h("span.error-text", null, e.code === "rate_limited" ? t("replay_limited") : e.message));
+    }
+  });
+  const result = sample.verdict === "NEEDS_RERECORD" ? null : headlineText(sample);
+  const kind = experimentLabel(sample.experiment);
+  return h("article.sample", null,
+    h("div.thumb", null, h("img", { src: artifactUrl(sample.run_id, "keyframe.png"), alt: "",
+                                    loading: "lazy", width: 320, height: 180 })),
+    h("div.sample-body", null,
+      h("div.sample-meta", null,
+        h("span.small.muted", null, kind === sample.title[lang] ? "" : kind),
+        verdictChip({ verdict: sample.verdict, stage: "done" })),
+      h("h3", null, sample.title[lang] ?? sample.key),
+      h("p.small", null, sample.blurb[lang] ?? ""),
+      result ? h("p.num.sample-result", null, result) : null,
+      h("div.sample-actions", null, watch,
+        h("a.small", { href: `#/run/${sample.run_id}` }, t("open_result"))),
+      message));
+}
+
+function samplesSection(): HTMLElement {
+  const grid = h("div.samples");
+  const section = h("section", { "aria-labelledby": "samples-title", hidden: true },
+    h("div.section-head", null, h("h2#samples-title", null, t("samples")),
+      h("p.small.muted", null, t("samples_intro"))),
+    grid);
+  listSamples().then((samples) => {
+    if (!samples.length) return;
+    clear(grid, ...samples.map(sampleCard));
+    section.hidden = false;
+  }).catch(() => undefined);
+  return section;
+}
+
 export function uploadView(): View {
-  const el = h("div.stack", null,
+  const el = h("div.stack.gap-lg", null,
     h("div.hero", null, hero(), uploadForm()),
+    samplesSection(),
     recentRuns());
   return { el };
 }

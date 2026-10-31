@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from framelab.agent.ledger import Ledger
 from framelab.clients import sam as sam_client
+from framelab.config import MODEL_SPARK_OPEN_BASETEN
 from framelab.physics.uncertainty import fmt
 from framelab.pipeline import ingest as ingest_mod
 from framelab.pipeline import measure, view
@@ -43,13 +44,30 @@ FONT_PATH = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans.ttf
 PIVOT_BGR = (255, 255, 255)
 
 
-def built_with(lang: str, auditor_model: str | None) -> str:
-    """The models this run used (Muse Wonder only when it was the Auditor)."""
+def built_with(
+    lang: str, auditor_model: str | None, designer_models: list[str] | None = None
+) -> str:
+    """The models this run used (Muse Wonder only when it was the Auditor, Muse Spark Open only
+    when it wrote the next-experiment proposal; its license asks for "Built with Muse Spark
+    Open")."""
     models = ["Meta SAM 3.1", "Muse Spark"]
     if auditor_model == "muse-wonder-1.0":
         models.append("Muse Wonder")
+    if MODEL_SPARK_OPEN_BASETEN in (designer_models or []):
+        models.append("Muse Spark Open")
     lead = "Built with" if lang == "en" else "Dibangun dengan"
     return f"{lead} " + " · ".join(models)
+
+
+def designer_models(run_dir: Path) -> list[str]:
+    """Models recorded in the Designer's proposal (S-3), if there is one."""
+    path = run_dir / "analysis" / "designer.json"
+    if not path.is_file():
+        return []
+    try:
+        return list(read_json(path).get("models") or [])
+    except ValueError:
+        return []
 
 
 def contours_of(record: Any, offset: int = 0) -> list[np.ndarray]:
@@ -125,16 +143,14 @@ def _trail(frame: np.ndarray, rows: list[TrackRow], m_frame: int) -> None:
             cv2.line(frame, (x - 5, y + 5), (x + 5, y - 5), OUTLIER_BGR, 2)
 
 
-def _card(
-    frame: np.ndarray, headline: str, verdict: str, lang: str, auditor_model: str | None = None
-) -> np.ndarray:
+def _card(frame: np.ndarray, headline: str, verdict: str, credit: str) -> np.ndarray:
     dark = (frame * 0.3).astype(np.uint8)
     h, w = frame.shape[:2]
     size = max(18, h // 14)
     image = Image.fromarray(cv2.cvtColor(dark, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(image)
     lines = [(headline, size * 2, (255, 255, 255)), (verdict, size, (255, 224, 0)),
-             (built_with(lang, auditor_model), int(size * 0.7), (200, 200, 200))]  # fmt: skip
+             (credit, int(size * 0.7), (200, 200, 200))]  # fmt: skip
     y = int(h * 0.35)
     for text, s, color in lines:
         f = _font(s)
@@ -167,6 +183,7 @@ def render(run_dir: Path, out_path: Path) -> Path:
     verdict = VERDICT_TEXT.get(verdict_code, {}).get(lang, verdict_code)
     verdict_file = run_dir / "analysis" / "verdict.json"
     auditor_model = read_json(verdict_file).get("auditor_model") if verdict_file.is_file() else None
+    credit = built_with(lang, auditor_model, designer_models(run_dir))
 
     video = run_dir / ing.video_path
     cap = cv2.VideoCapture(str(video))
@@ -213,7 +230,7 @@ def render(run_dir: Path, out_path: Path) -> Path:
             proc.stdin.write(frame.tobytes())
             last = frame
         card_frames = round(END_CARD_S * fps)
-        card = _card(last, headline, verdict, lang, auditor_model) if last is not None else None
+        card = _card(last, headline, verdict, credit) if last is not None else None
         for _ in range(card_frames if card is not None else 0):
             proc.stdin.write(card.tobytes())
     finally:

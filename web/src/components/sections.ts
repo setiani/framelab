@@ -30,6 +30,8 @@ export function gatesPanel() {
   return { el, update };
 }
 
+const SPARK_OPEN = "meta-models/muse-spark-open-1026";
+
 export function nextPanel() {
   const el = h("section.panel.next", { "aria-labelledby": "next-title" });
   function update(run: RunDetail) {
@@ -41,7 +43,10 @@ export function nextPanel() {
     const safety = lang === "id" ? p.safety_notes_id : p.safety_notes_en;
     const prediction = (lang === "id" ? p.prediction_id_rendered : p.prediction_en_rendered) ?? "";
     clear(el, 
-      h("div.panel-head", null, h("h2#next-title", null, t("next"))),
+      h("div.panel-head", null, h("h2#next-title", null, t("next")),
+        (p.models ?? []).includes(SPARK_OPEN)
+          ? h("span.chip.plain.open", { title: "meta-models/muse-spark-open-1026 via Baseten" }, t("designed_open"))
+          : null),
       h("h3", { style: "margin-bottom:10px" }, p.title),
       h("dl.kv", null, h("dt", null, t("changed")), h("dd", null, p.changed_variable.replace("_", " ")),
         h("dt", null, t("controlled")), h("dd", null, p.controlled_variables.join(", "))),

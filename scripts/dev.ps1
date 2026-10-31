@@ -33,5 +33,6 @@ switch ($Task) {
     "eval"       { uv run python eval/benchmark.py }
     "build-web"  { Push-Location web; npm run build; Pop-Location }
     "docker"     { docker build -t framelab . }
-    "demo-cache" { uv run python scripts/build_demo_cache.py }
+    # Needs the run ids: uv run python scripts/build_demo_cache.py --sample free_fall=r_... (see demo_runs/README.md)
+    "demo-cache" { uv run python scripts/build_demo_cache.py --help }
 }

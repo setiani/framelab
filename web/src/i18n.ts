@@ -64,6 +64,23 @@ const STRINGS = {
     no_series: "No series yet.", select_runs: "Select pendulum runs for the new series",
     no_pendulum_runs: "No finished pendulum runs with a known length yet.",
     close: "Close", open_run: "Open",
+    samples_intro: "Complete runs recorded with FrameLab. A replay plays the original run again "
+      + "from the cache, step by step, without uploading anything or calling a model.",
+    watch_replay: "Watch the replay", open_result: "Open the result",
+    sample_banner: "Sample run recorded with FrameLab", recorded: "Recorded",
+    open_original: "Open the recorded run", cost_original: "Model cost of the recorded run",
+    uploads_off: "Live uploads are off",
+    up_demo_mode: "This demo shows recorded samples only. Watch one below.",
+    up_no_api_key: "No model API key is set on this server, so it cannot measure new videos. "
+      + "The samples below still work.",
+    up_daily_budget: "Live uploads are paused for today to protect API credits. Try the samples below.",
+    up_rate_limited: "You have reached the upload limit for your address. Try again later, or watch a sample.",
+    replay_limited: "Too many replays from your address. Try again later.",
+    sample_series: "Sample series (read-only)", see_samples: "Show the samples",
+    designed_open: "Designed by Muse Spark Open",
+    built_with: "Built with Meta SAM 3.1, Muse Spark 1.3 and Muse Voice Transcribe.",
+    built_with_open: "Built with Meta SAM 3.1, Muse Spark 1.3, Muse Spark Open and Muse Voice Transcribe.",
+    every_number: "Every number in a report is copied from evidence computed by code.",
   },
   id: {
     nav_new: "Pengukuran baru", nav_series: "Seri", backend_ok: "Backend siap",
@@ -129,6 +146,23 @@ const STRINGS = {
     no_series: "Belum ada seri.", select_runs: "Pilih run bandul untuk seri baru",
     no_pendulum_runs: "Belum ada run bandul selesai dengan panjang tali yang diketahui.",
     close: "Tutup", open_run: "Buka",
+    samples_intro: "Run lengkap yang direkam dengan FrameLab. Pemutaran ulang menjalankan kembali "
+      + "run aslinya dari cache, langkah demi langkah, tanpa mengunggah apa pun dan tanpa memanggil model.",
+    watch_replay: "Putar ulang", open_result: "Lihat hasil",
+    sample_banner: "Contoh run yang direkam dengan FrameLab", recorded: "Direkam",
+    open_original: "Buka run aslinya", cost_original: "Biaya model run aslinya",
+    uploads_off: "Unggahan langsung dimatikan",
+    up_demo_mode: "Demo ini hanya menampilkan contoh rekaman. Silakan putar salah satunya di bawah.",
+    up_no_api_key: "Server ini belum diberi kunci API model, jadi belum bisa mengukur video baru. "
+      + "Contoh rekaman di bawah tetap bisa diputar.",
+    up_daily_budget: "Unggahan langsung dijeda hari ini untuk menjaga kredit API. Silakan coba contoh rekaman di bawah.",
+    up_rate_limited: "Batas unggahan untuk alamat Anda sudah tercapai. Coba lagi nanti, atau putar contoh rekaman.",
+    replay_limited: "Terlalu banyak pemutaran ulang dari alamat Anda. Coba lagi nanti.",
+    sample_series: "Seri contoh (hanya baca)", see_samples: "Lihat contoh rekaman",
+    designed_open: "Dirancang oleh Muse Spark Open",
+    built_with: "Dibangun dengan Meta SAM 3.1, Muse Spark 1.3, dan Muse Voice Transcribe.",
+    built_with_open: "Dibangun dengan Meta SAM 3.1, Muse Spark 1.3, Muse Spark Open, dan Muse Voice Transcribe.",
+    every_number: "Setiap angka dalam laporan disalin dari bukti yang dihitung oleh kode.",
   },
 } as const;
 

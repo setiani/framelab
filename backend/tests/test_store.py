@@ -105,3 +105,22 @@ def test_atomic_write_gives_up_and_cleans_temp(tmp_path, monkeypatch) -> None:
     with pytest.raises(PermissionError):
         store.write_json_atomic(tmp_path / "state.json", {"ok": True})
     assert not list(tmp_path.glob(".state.json.*.tmp"))
+
+
+def test_reads_retry_while_windows_holds_a_replaced_file(store, monkeypatch) -> None:
+    """Windows: a file being replaced is briefly unreadable (Errno 13); readers retry."""
+    from pathlib import Path
+
+    state = store.create_run("x.mp4")
+    real = Path.read_text
+    failures = {"left": 2}
+
+    def flaky(self, *args, **kwargs):
+        if self.name == "state.json" and failures["left"]:
+            failures["left"] -= 1
+            raise PermissionError(13, "Permission denied", str(self))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky)
+    assert store.load_state(state.run_id).run_id == state.run_id
+    assert failures["left"] == 0

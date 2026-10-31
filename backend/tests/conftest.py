@@ -21,6 +21,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip_live)
 
 
+@pytest.fixture(autouse=True)
+def _no_baseten_key(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Offline tests never reach Baseten, even when the developer's .env has a key: with
+    ``designer_backend="auto"`` a key would send the Designer to Muse Spark Open (S-3)."""
+    if "live" not in request.keywords:
+        monkeypatch.setattr(Settings, "baseten_api_key", property(lambda self: None))
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(runs_dir=tmp_path / "runs")

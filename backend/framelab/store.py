@@ -72,21 +72,55 @@ def write_json_atomic(path: Path, data: Any) -> None:
         raise
 
 
+def read_text_with_retry(path: Path) -> str:
+    """Read a file another thread may be replacing at this moment.
+
+    On Windows, ``os.replace`` leaves the old file "delete pending" for a few milliseconds, and
+    opening it then fails with ``PermissionError`` (Errno 13) instead of returning either
+    version. A replay rewrites ``state.json`` many times a second while the API reads it, so
+    readers retry briefly, like writers do in ``replace_with_retry``.
+    """
+    for delay in REPLACE_RETRY_DELAYS_S:
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            time.sleep(delay)
+    return path.read_text(encoding="utf-8")
+
+
 def read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(read_text_with_retry(path))
 
 
 class RunStore:
-    """Creates, loads and saves runs and series under ``root``."""
+    """Creates, loads and saves runs and series under ``root``.
 
-    def __init__(self, root: Path) -> None:
+    ``sample_root`` (optional) holds cached sample runs and series for demo mode (07 §3). They are
+    read through the same methods, but never written: new runs and series always go to ``root``.
+    """
+
+    def __init__(self, root: Path, sample_root: Path | None = None) -> None:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self.sample_root = Path(sample_root) if sample_root is not None else None
 
     # --- runs ---------------------------------------------------------------------------
     def run_dir(self, run_id: str) -> Path:
         _check_id(run_id, "r_")
-        return self.root / run_id
+        own = self.root / run_id
+        if not own.exists() and self.sample_root is not None:
+            cached = self.sample_root / run_id
+            if (cached / "state.json").is_file():
+                return cached
+        return own
+
+    def is_sample(self, run_id: str) -> bool:
+        """True for a cached sample run (read-only)."""
+        try:
+            path = self.run_dir(run_id)
+        except RunNotFoundError:
+            return False
+        return self.sample_root is not None and path.parent == self.sample_root
 
     def create_run(
         self,
@@ -126,7 +160,7 @@ class RunStore:
         path = self.run_dir(run_id) / "state.json"
         if not path.is_file():
             raise RunNotFoundError(run_id)
-        return RunState.model_validate_json(path.read_text(encoding="utf-8"))
+        return RunState.model_validate_json(read_text_with_retry(path))
 
     def save_state(self, state: RunState) -> None:
         state.updated_at = utcnow()
@@ -138,15 +172,17 @@ class RunStore:
         self.save_state(state)
         return state
 
-    def list_runs(self, limit: int = 20) -> list[RunState]:
-        states: list[RunState] = []
-        for path in self.root.glob("r_*/state.json"):
-            try:
-                states.append(RunState.model_validate_json(path.read_text(encoding="utf-8")))
-            except ValueError:
-                continue
+    def list_runs(self, limit: int = 20, *, include_replays: bool = False) -> list[RunState]:
+        """Runs in ``root``, newest first. Cached samples are not listed (see ``list_samples``);
+        replays only with ``include_replays``."""
+        states = [s for s in _load_states(self.root) if include_replays or s.replay_of is None]
         states.sort(key=lambda s: s.created_at, reverse=True)
         return states[:limit]
+
+    def list_sample_runs(self) -> list[RunState]:
+        if self.sample_root is None or not self.sample_root.is_dir():
+            return []
+        return _load_states(self.sample_root)
 
     def artifact_path(self, run_id: str, relative: str) -> Path:
         """Resolve a path inside the run folder, refusing path traversal."""
@@ -159,7 +195,19 @@ class RunStore:
     # --- series -------------------------------------------------------------------------
     def series_dir(self, series_id: str) -> Path:
         _check_id(series_id, "s_")
-        return self.root / "series" / series_id
+        own = self.root / "series" / series_id
+        if not own.exists() and self.sample_root is not None:
+            cached = self.sample_root / "series" / series_id
+            if (cached / "series.json").is_file():
+                return cached
+        return own
+
+    def series_roots(self) -> list[Path]:
+        """Folders that hold series: our own, then the cached samples."""
+        roots = [self.root / "series"]
+        if self.sample_root is not None:
+            roots.append(self.sample_root / "series")
+        return [r for r in roots if r.is_dir()]
 
     def create_series(self, run_ids: list[str] | None = None) -> SeriesState:
         series = SeriesState(
@@ -172,10 +220,20 @@ class RunStore:
         path = self.series_dir(series_id) / "series.json"
         if not path.is_file():
             raise RunNotFoundError(series_id)
-        return SeriesState.model_validate_json(path.read_text(encoding="utf-8"))
+        return SeriesState.model_validate_json(read_text_with_retry(path))
 
     def save_series(self, series: SeriesState) -> None:
         write_json_atomic(self.series_dir(series.series_id) / "series.json", series)
+
+
+def _load_states(root: Path) -> list[RunState]:
+    states: list[RunState] = []
+    for path in root.glob("r_*/state.json"):
+        try:
+            states.append(RunState.model_validate_json(read_text_with_retry(path)))
+        except (ValueError, OSError):  # half-written, or deleted since the glob (old replay)
+            continue
+    return states
 
 
 def _check_id(value: str, prefix: str) -> None:

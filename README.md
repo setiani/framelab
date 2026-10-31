@@ -15,11 +15,22 @@ scientific data. It then designs the next experiment.
 | Plan the experiment from the video | **Muse Spark 1.3** | Video + transcript → ExperimentSpec |
 | Track the object in every frame and segment the ruler | **SAM 3.1** | The *sensor*: masks → sub-pixel positions |
 | Analyse through tools (fit, bootstrap, gates, claims) | **Muse Spark 1.3** | Agent that decides; code computes |
-| Independent review of the report | **Muse Wonder** | Auditor: PASS / REJECT / NEEDS_RERECORD |
-| Propose the next experiment | **Muse Spark 1.3** | Change one variable, predict with code |
+| Independent review of the report | **Muse Spark 1.3** (separate context; Muse Wonder optional) | Auditor: PASS / REJECT / NEEDS_RERECORD |
+| Propose the next experiment | **Muse Spark Open** (open weights, served by Baseten); Muse Spark 1.3 as fallback | Designer: change one variable, predict with code |
 
 Core rule: **the LLM decides, code computes.** Every number in a report comes from
 deterministic Python and is linked to evidence in a *Claim Ledger*.
+
+### Open-weight model: Muse Spark Open via Baseten
+
+The Designer runs on **Muse Spark Open** (`meta-models/muse-spark-open-1026`), Meta's open-weight
+model, served by [Baseten](https://www.baseten.co/) through its OpenAI-compatible API
+(`backend/framelab/clients/baseten.py`). It is on whenever `BASETEN_API_KEY` is set
+(`FRAMELAB_DESIGNER_BACKEND=auto`; `meta` or `baseten` to force one). Baseten has no structured
+outputs for this model, so the proposal comes back through a `submit_proposal` tool call and is
+validated like any other agent output. If Spark Open fails, Muse Spark 1.3 finishes the step;
+each proposal records which model wrote it, and the app, the report and the video credit
+"Built with Muse Spark Open" only when it did.
 
 Full design: [`docs/plan/`](docs/plan/README.md).
 
@@ -30,7 +41,7 @@ Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, ffmpeg/f
 ```bash
 uv sync
 uv run playwright install chromium
-cp .env.example .env          # then put your MODEL_API_KEY in .env
+cp .env.example .env          # then put MODEL_API_KEY (and BASETEN_API_KEY) in .env
 uv run framelab doctor        # checks ffmpeg, Chromium, API key
 uv run pytest                 # offline tests
 uv run uvicorn framelab.api.main:app --reload    # http://localhost:8000/api/health

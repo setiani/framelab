@@ -41,5 +41,5 @@ build-web:
 docker:
 	docker build -t framelab .
 
-demo-cache:
-	uv run python scripts/build_demo_cache.py
+demo-cache:  # make demo-cache ARGS="--sample free_fall=r_... --sample trap=r_..."
+	uv run python scripts/build_demo_cache.py $(ARGS)

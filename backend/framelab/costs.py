@@ -7,7 +7,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from framelab.config import MODEL_IMAGE, MODEL_SAM, MODEL_SPARK, MODEL_VOICE, MODEL_WONDER
+from framelab.config import (
+    MODEL_IMAGE,
+    MODEL_SAM,
+    MODEL_SPARK,
+    MODEL_SPARK_OPEN_BASETEN,
+    MODEL_VOICE,
+    MODEL_WONDER,
+)
 
 
 @dataclass(frozen=True)
@@ -20,6 +27,9 @@ class TokenPrice:
 TOKEN_PRICES: dict[str, TokenPrice] = {
     MODEL_SPARK: TokenPrice(1.25, 0.15, 4.25),
     MODEL_WONDER: TokenPrice(4.00, 0.20, 20.00),
+    # Baseten list price (31 Oct 2026), paid from the hackathon's Baseten credits. No cached
+    # price is published, so cached input is counted at the full input price.
+    MODEL_SPARK_OPEN_BASETEN: TokenPrice(1.25, 1.25, 4.25),
 }
 
 SAM_IMAGE_PER_1000 = 2.50
@@ -67,4 +77,5 @@ def model_family(model: str) -> str:
         MODEL_SAM: "SAM 3.1",
         MODEL_VOICE: "Muse Voice",
         MODEL_IMAGE: "Muse Image",
+        MODEL_SPARK_OPEN_BASETEN: "Muse Spark Open",
     }.get(model, model)
