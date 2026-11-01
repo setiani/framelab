@@ -1,0 +1,82 @@
+{
+  "run_id": "r_20261101_111241_8b0713",
+  "created_at": "2026-11-01T11:12:41.774044Z",
+  "updated_at": "2026-11-01T11:17:45.762646Z",
+  "stage": "done",
+  "stage_history": [
+    [
+      "created",
+      "2026-11-01T11:12:41.774044Z"
+    ],
+    [
+      "ingesting",
+      "2026-11-01T11:12:42.027876Z"
+    ],
+    [
+      "transcribing",
+      "2026-11-01T11:12:44.287351Z"
+    ],
+    [
+      "planning",
+      "2026-11-01T11:12:47.367256Z"
+    ],
+    [
+      "segmenting",
+      "2026-11-01T11:13:07.510962Z"
+    ],
+    [
+      "measuring",
+      "2026-11-01T11:14:09.926180Z"
+    ],
+    [
+      "analyzing",
+      "2026-11-01T11:14:30.546613Z"
+    ],
+    [
+      "auditing",
+      "2026-11-01T11:14:48.058107Z"
+    ],
+    [
+      "designing",
+      "2026-11-01T11:14:48.133556Z"
+    ],
+    [
+      "rendering",
+      "2026-11-01T11:14:48.138061Z"
+    ],
+    [
+      "done",
+      "2026-11-01T11:17:45.762646Z"
+    ]
+  ],
+  "original_filename": "video-3-30cm.mp4",
+  "lang": "en",
+  "capture_fps": null,
+  "note": null,
+  "series_id": null,
+  "experiment": "free_fall",
+  "verdict": "NEEDS_RERECORD",
+  "headline": null,
+  "cost_usd": 0.102968,
+  "revise_rounds": 0,
+  "warnings": [],
+  "error": null,
+  "artifacts": {
+    "video": "ingest/video.mp4",
+    "transcript": "transcript.json",
+    "spec": "spec.json",
+    "observations": "observations.csv",
+    "debug_centroids": "debug/centroids.png",
+    "track": "tracks/white_baseball_0.csv",
+    "verdict": "analysis/verdict.json",
+    "chart_trajectory_json": "outputs/chart_trajectory.json",
+    "chart_trajectory_png": "outputs/chart_trajectory.png",
+    "data_csv": "outputs/data.csv",
+    "feedback": "outputs/recording_feedback.pdf",
+    "feedback_frame": "outputs/feedback_frame.png",
+    "overlay": "outputs/overlay.mp4"
+  },
+  "demo": true,
+  "sample": "trap",
+  "replay_of": null
+}

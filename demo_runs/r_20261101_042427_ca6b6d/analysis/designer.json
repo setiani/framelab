@@ -1,0 +1,101 @@
+{
+  "title": "Pendulum Period vs String Length / Periode Pendulum vs Panjang Tali",
+  "changed_variable": "string_length",
+  "controlled_variables": [
+    "Bob mass and shape kept identical / Massa dan bentuk bandul dijaga identik",
+    "Release angle kept small and identical / Sudut pelepasan dijaga kecil dan identik",
+    "Same support point and indoor location, no wind / Titik tumpu dan lokasi dalam ruangan sama, tanpa angin",
+    "Same timing method - phone slow-motion / Metode pengaturan waktu sama - gerak lambat ponsel"
+  ],
+  "new_values": [
+    {
+      "value": 0.5,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.0,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.5,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 2.0,
+      "unit": "m",
+      "source_turn": null
+    }
+  ],
+  "prediction_en": "Based on pendulum law, increasing length increases period. Predicted periods are {{p1}} for the shortest length, {{p2}} for the next, {{p3}} for the next, and {{p4}} for the longest length. A plot of period squared versus length should be a straight line through the origin.",
+  "prediction_id": "Berdasarkan hukum pendulum, menambah panjang akan menambah periode. Prediksi periode adalah {{p1}} untuk panjang terpendek, {{p2}} untuk berikutnya, {{p3}} untuk berikutnya, dan {{p4}} untuk panjang terpanjang. Grafik kuadrat periode versus panjang seharusnya berupa garis lurus melalui titik nol.",
+  "protocol_steps_en": [
+    "Build pendulum: tie same metal nut to cotton thread, hang from door handle max two meters high, measure length from pivot to bob centre",
+    "Set shortest length, displace sideways with small identical angle, release without push",
+    "Film in slow-motion, time ten complete swings and divide by ten to get period, repeat three times and average",
+    "Repeat for the three longer lengths keeping bob, angle, string type and location identical",
+    "Record results in table and plot period squared versus length"
+  ],
+  "protocol_steps_id": [
+    "Buat pendulum: ikat mur logam yang sama pada benang katun, gantung pada gagang pintu maksimal dua meter, ukur panjang dari tumpuan ke pusat bandul",
+    "Atur panjang terpendek, tarik ke samping dengan sudut kecil yang identik, lepaskan tanpa dorongan",
+    "Rekam gerak lambat, ukur waktu sepuluh ayunan lengkap dan bagi sepuluh untuk mendapat periode, ulangi tiga kali dan rata-ratakan",
+    "Ulangi untuk tiga panjang yang lebih panjang dengan menjaga bandul, sudut, jenis tali dan lokasi tetap identik",
+    "Catat hasil dalam tabel dan buat grafik kuadrat periode versus panjang"
+  ],
+  "safety_notes_en": [
+    "Heights at most two meters only, use door frame with adult nearby",
+    "Household objects only: thread, tape, metal nut - no glass, no fire, no mains electricity",
+    "Clear area so bob cannot hit people; wear shoes",
+    "Adult supervision required for children"
+  ],
+  "safety_notes_id": [
+    "Tinggi maksimal hanya dua meter, gunakan kusen pintu dengan orang dewasa di dekatnya",
+    "Hanya benda rumah tangga: benang, meteran, mur logam - tanpa kaca, tanpa api, tanpa listrik PLN",
+    "Kosongkan area agar bandul tidak mengenai orang; kenakan sepatu",
+    "Pengawasan orang dewasa diperlukan untuk anak-anak"
+  ],
+  "predicted_values": [
+    {
+      "id": "p1",
+      "input": 0.5,
+      "unit_in": "m",
+      "predicted": 1.4322570180532392,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_01"
+    },
+    {
+      "id": "p2",
+      "input": 1.0,
+      "unit_in": "m",
+      "predicted": 2.0255172997349375,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_02"
+    },
+    {
+      "id": "p3",
+      "input": 1.5,
+      "unit_in": "m",
+      "predicted": 2.480741924765305,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_03"
+    },
+    {
+      "id": "p4",
+      "input": 2.0,
+      "unit_in": "m",
+      "predicted": 2.8645140361064785,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_04"
+    }
+  ],
+  "models": [
+    "meta-models/muse-spark-open-1026"
+  ]
+}

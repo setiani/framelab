@@ -1,0 +1,12 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "rotation_deg": -90,
+  "duration_s": 8.304022,
+  "avg_fps": 58.04416066109864,
+  "r_fps": 60.0,
+  "nb_frames": 482,
+  "is_vfr": true,
+  "has_audio": true,
+  "codec": "h264"
+}

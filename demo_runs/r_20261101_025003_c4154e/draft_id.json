@@ -1,0 +1,30 @@
+{
+  "lang": "id",
+  "title": "Pengukuran jatuh bebas dengan bola bisbol putih yang dijatuhkan di samping pita",
+  "aim": "Untuk mengukur percepatan gravitasi dari pelacakan video bola bisbol yang jatuh dan membandingkan hasilnya dengan acuan yang diterima sambil melaporkan ketidakpastian secara jujur.",
+  "setup": "Sebuah bola bisbol putih dipegang pada dinding gelap di samping pita pengukur kuning yang tegak lalu dilepaskan hingga jatuh ke lantai ubin. Pengubahan dari piksel gambar ke meter memakai diameter bola yang diketahui pada bidang gerak {{c10}}.",
+  "method": "Pelacakan menemukan pusat bola pada setiap bingkai video untuk memberi posisi terhadap waktu. Jarak piksel diubah menjadi meter dengan skala diameter bola. Model jatuh bebas melengkung dipaskan pada bagian jatuh terpilih yang memangkas sentuhan tangan saat dilepas, dan kelengkungannya memberi percepatan gravitasi. Ketidakpastian berasal dari pengambilan ulang sisa secara berulang yang membangun rentang kepercayaan. Grafik lintasan dan sisa memeriksa bahwa model mengikuti data {{c11}} {{c13}}.",
+  "results": [
+    {
+      "heading": "Pengukuran utama",
+      "body": "Percepatan gravitasi yang terukur dilaporkan beserta ketidakpastiannya {{c07}}. Rentang pengambilan ulang di sekitar nilai tersebut adalah {{c09}}. Pas berkurva mengikuti lintasan dengan dekat dengan sisa yang kecil dan seimbang {{c11}} {{c13}}."
+    },
+    {
+      "heading": "Perbandingan dan kualitas",
+      "body": "Dibanding acuan nilai yang terukur lebih rendah dan acuan berada di luar rentang kepercayaan {{c08}}. Uji konsistensi skala memberi peringatan karena hanya satu cara skala yang tersedia sehingga konsistensi tidak dapat diperiksa {{c12}} {{c10}}. Uji kewajaran fisika memberi peringatan karena nilai utama berada di luar rentang wajar sehingga hasil harus dibaca dengan hati-hati {{c14}} {{c07}}."
+    }
+  ],
+  "hypothesis_evaluation": null,
+  "error_analysis": "Ketidakpastian skala yang utama berasal dari penggunaan diameter bola saja tanpa skala pita pengukur lain sebagai pembanding, sehingga uji konsistensi skala tidak dapat lolos dan hanya memberi peringatan {{c10}} {{c12}}. Selisih bidang pita dan kemungkinan guncangan kamera akan menggeser skala dan kelengkungan ke satu arah dan dapat menjelaskan nilai utama yang rendah sehingga memicu peringatan kewajaran {{c14}} {{c07}}. Kekaburan gerak saat jatuh cepat dan tertutup tangan sebentar dekat pelepasan menambah sebaran yang dikurangi dengan memakai jendela manual yang dipangkas, setelah itu uji kualitas pas berkurva lolos dengan sisa yang seimbang {{c11}} {{c13}}. Hambatan udara pada bola bisbol yang padat pada jatuh yang pendek diperkirakan kecil dibanding selisih yang teramati. Perbandingan dengan acuan {{c08}} dan rentang {{c09}} karena itu menggambarkan video dan skala saat ini, bukan konstanta umum.",
+  "conclusion": "Video ini menghasilkan perkiraan berhingga untuk percepatan gravitasi beserta rentang yang dinyatakan {{c07}} {{c09}}. Nilainya berada di bawah acuan di luar rentang tersebut {{c08}}, dan peringatan kewajaran berarti hasil ini harus dibaca dengan hati-hati dan bukan sebagai konfirmasi {{c14}}.",
+  "claims_used": [
+    "c07",
+    "c08",
+    "c09",
+    "c10",
+    "c11",
+    "c12",
+    "c13",
+    "c14"
+  ]
+}

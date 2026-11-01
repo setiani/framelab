@@ -1,0 +1,30 @@
+{
+  "lang": "id",
+  "title": "Ayunan pendulum mur kuningan untuk pengukuran gravitasi",
+  "aim": "Untuk mengukur gravitasi dari ayunan mur kuningan yang digantung dan untuk menguji periode yang diprediksi.",
+  "setup": "Sebuah mur kuningan tergantung pada tali merah yang dipaku ke dinding dan berayun sebagai pendulum. Tangan sempat masuk saat pelepasan dan sedikit keburaman terlihat saat gerak cepat.",
+  "method": "Kami melacak mur bingkai demi bingkai, memangkas pelepasan untuk menjaga ayunan yang bersih, mencocokkan kurva sinus teredam pada gerak menyamping, memperkirakan ketidakpastian dengan resampling, mengoreksi periode terhadap besar ayunan, dan mengubah periode menjadi gravitasi menggunakan panjang tali yang dinyatakan. Kualitas kecocokan adalah {{c07}} dan skala dari panjang yang disebutkan adalah {{c06}}.",
+  "results": [
+    {
+      "heading": "Gravitasi dan periode",
+      "body": "Gravitasi utama adalah {{c01}} dengan perbandingan acuan {{c04}}. Periode terukur adalah {{c02}} dan nilai terkoreksi ukuran adalah {{c03}}. Selang resampling adalah {{c05}}."
+    },
+    {
+      "heading": "Kalibrasi dan kualitas",
+      "body": "Rincian skala dan kecocokan adalah {{c06}} dan {{c07}}."
+    }
+  ],
+  "hypothesis_evaluation": "Periode yang diprediksi tidak didukung, karena periode terukur {{c02}} berbeda jelas dan uji formal menghasilkan {{c08}}.",
+  "error_analysis": "Ketidakpastian utama berasal dari panjang tali yang dinyatakan, perkiraan titik gantung dan skala, keburaman gerak saat ayunan cepat, sentuhan tangan singkat saat pelepasan, dan goyangan kecil yang tidak tertangkap oleh sinus teredam sederhana. Rentang resampling {{c05}} menangkap variasi waktu tetapi bukan bias panjang sistematis.",
+  "conclusion": "Pendulum menghasilkan nilai gravitasi {{c01}} yang sesuai dengan acuan dalam {{c04}}, didukung oleh kecocokan yang kuat {{c07}}.",
+  "claims_used": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08"
+  ]
+}

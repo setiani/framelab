@@ -1,0 +1,35 @@
+{
+  "experiment": "pendulum",
+  "target_concept": "metal nut",
+  "target_alt_concepts": [
+    "brass nut",
+    "small nut"
+  ],
+  "target_hint_box": null,
+  "reference": null,
+  "object_diameter_m": null,
+  "spoken_params": {
+    "string_length": {
+      "value": 50.0,
+      "unit": "cm",
+      "source_turn": 0
+    }
+  },
+  "analysis_window_s": [
+    0.0,
+    9.5
+  ],
+  "motion_axis": "x",
+  "hypothesis": "I estimate the period to be one and a half seconds.",
+  "hypothesis_prediction": {
+    "value": 1.5,
+    "unit": "s",
+    "source_turn": 0
+  },
+  "language": "en",
+  "setup_description": "A metal nut suspended by a red string pinned to a green wall swings side to side.",
+  "confidence": 0.75,
+  "warnings": [
+    "no scale reference visible in plane of motion"
+  ]
+}

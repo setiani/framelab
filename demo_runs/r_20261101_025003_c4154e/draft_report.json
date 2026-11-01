@@ -1,0 +1,30 @@
+{
+  "lang": "en",
+  "title": "Free fall measurement with a white baseball dropped beside a tape",
+  "aim": "To measure gravitational acceleration from video tracking of a falling baseball and to compare the result with the accepted reference while reporting uncertainty honestly.",
+  "setup": "A white baseball is held against a dark wall beside a vertical yellow measuring tape and then released to fall to a tiled floor. The conversion from image pixels to metres uses the known diameter of the ball in the plane of motion {{c10}}.",
+  "method": "Tracking finds the centre of the ball in each video frame to give position against time. Pixel distances become metres with the ball diameter scale. A curved free fall model is fitted to the selected falling segment that trims hand contact at release, and the curvature gives gravitational acceleration. Uncertainty comes from repeated resampling of the residuals which builds a confidence interval. Trajectory and residual charts check that the model follows the data {{c11}} {{c13}}.",
+  "results": [
+    {
+      "heading": "Headline measurement",
+      "body": "The measured gravitational acceleration is reported with uncertainty {{c07}}. The resampling interval around the value is {{c09}}. The fit follows the trajectory closely with small and balanced residuals {{c11}} {{c13}}."
+    },
+    {
+      "heading": "Comparison and quality",
+      "body": "Compared with the reference the measured value is lower and the reference lies outside the confidence interval {{c08}}. The scale consistency check warns because only a single scale method is available so consistency cannot be checked {{c12}} {{c10}}. The physical plausibility check warns because the headline value lies outside the plausible range so the result should be read with caution {{c14}} {{c07}}."
+    }
+  ],
+  "hypothesis_evaluation": null,
+  "error_analysis": "The dominant scale uncertainty comes from using the ball diameter alone without an independent tape scale for cross checking, which is why the scale consistency check cannot pass and only warns {{c10}} {{c12}}. Tape plane offset and possible camera shake would bias the scale and curvature in one direction and can explain a low headline value that triggers the plausibility warning {{c14}} {{c07}}. Motion blur during fast fall and brief hand occlusion near release add scatter that was reduced by using a trimmed manual window, after which the fit quality check passes with balanced residuals {{c11}} {{c13}}. Air drag on a dense baseball over a short drop is expected to be small compared with the observed offset. The comparison with the reference {{c08}} and the interval {{c09}} therefore describe the present video and scale, not a universal constant.",
+  "conclusion": "The video yields a finite estimate of gravitational acceleration with a stated interval {{c07}} {{c09}}. The value sits below the reference beyond the interval {{c08}}, and the plausibility warning means the result should be read with caution rather than as a confirmation {{c14}}.",
+  "claims_used": [
+    "c07",
+    "c08",
+    "c09",
+    "c10",
+    "c11",
+    "c12",
+    "c13",
+    "c14"
+  ]
+}

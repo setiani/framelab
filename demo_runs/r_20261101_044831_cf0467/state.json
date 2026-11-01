@@ -1,0 +1,112 @@
+{
+  "run_id": "r_20261101_044831_cf0467",
+  "created_at": "2026-11-01T04:48:31.770207Z",
+  "updated_at": "2026-11-01T05:31:15.084888Z",
+  "stage": "done",
+  "stage_history": [
+    [
+      "created",
+      "2026-11-01T04:48:31.770207Z"
+    ],
+    [
+      "ingesting",
+      "2026-11-01T04:48:31.898505Z"
+    ],
+    [
+      "transcribing",
+      "2026-11-01T04:48:34.124105Z"
+    ],
+    [
+      "planning",
+      "2026-11-01T04:48:37.618638Z"
+    ],
+    [
+      "segmenting",
+      "2026-11-01T04:48:56.440822Z"
+    ],
+    [
+      "measuring",
+      "2026-11-01T04:49:32.040267Z"
+    ],
+    [
+      "analyzing",
+      "2026-11-01T04:49:38.070247Z"
+    ],
+    [
+      "auditing",
+      "2026-11-01T04:50:16.672007Z"
+    ],
+    [
+      "designing",
+      "2026-11-01T04:50:24.758133Z"
+    ],
+    [
+      "rendering",
+      "2026-11-01T04:50:38.358365Z"
+    ],
+    [
+      "done",
+      "2026-11-01T04:51:06.387797Z"
+    ]
+  ],
+  "original_filename": "bandul-40cm-2.mp4",
+  "lang": "en",
+  "capture_fps": null,
+  "note": null,
+  "series_id": "s_20261101_053115_7397ab",
+  "experiment": "pendulum",
+  "verdict": "PASS_WITH_WARNINGS",
+  "headline": {
+    "experiment": "pendulum",
+    "quantity": "g",
+    "value": 9.645490776011046,
+    "sigma": 0.122474680432361,
+    "ci95": [
+      9.405440402363618,
+      9.885541149658474
+    ],
+    "unit": "m/s^2",
+    "evidence": "der_04",
+    "comparison_evidence": "cmp_01",
+    "formatted_en": "9.65 ± 0.12 m/s²",
+    "formatted_id": "9,65 ± 0,12 m/s²",
+    "ref": 9.781,
+    "rel_diff_pct": -1.3854332275734011,
+    "rel_diff_en": "-1.39%",
+    "period": 1.2823563156704632,
+    "period_formatted_en": "1.28236 ± 0.00017 s",
+    "period0": 1.2795218276011517,
+    "period0_sigma": 0.001427584657104868,
+    "length_m": 0.4,
+    "length_sigma_m": 0.005,
+    "length_source": "spoken",
+    "theta_mean_deg": 10.774749040329665,
+    "n_cycles": 5.614664124171741,
+    "scale_method": "spoken_length",
+    "scale_agreement_pct": null,
+    "fit_points": 359
+  },
+  "cost_usd": 0.218489,
+  "revise_rounds": 0,
+  "warnings": [],
+  "error": null,
+  "artifacts": {
+    "video": "ingest/video.mp4",
+    "transcript": "transcript.json",
+    "spec": "spec.json",
+    "observations": "observations.csv",
+    "debug_centroids": "debug/centroids.png",
+    "track": "tracks/brass_nut_1.csv",
+    "verdict": "analysis/verdict.json",
+    "draft_id": "draft_id.json",
+    "chart_trajectory_json": "outputs/chart_trajectory.json",
+    "chart_trajectory_png": "outputs/chart_trajectory.png",
+    "data_csv": "outputs/data.csv",
+    "overlay": "outputs/overlay.mp4",
+    "report_en": "outputs/report_en.pdf",
+    "report_id": "outputs/report_id.pdf"
+  },
+  "demo": true,
+  "sample": null,
+  "replay_of": null
+}

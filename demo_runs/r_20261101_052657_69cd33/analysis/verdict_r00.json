@@ -1,0 +1,12 @@
+{
+  "status": "PASS_WITH_WARNINGS",
+  "unsupported_claims": [],
+  "overreaching_statements": [],
+  "gate_failures": [],
+  "fix_instructions": [],
+  "rerecord_tips_en": [],
+  "rerecord_tips_id": [],
+  "auditor_model": "muse-spark-1.3",
+  "notes": "All numeric claims c01-c08 are backed by cited evidence (der, ci, cmp, cal, fit). Hypothesis evaluation 'not supported' matches cmp_02. Conclusion of consistency within interval matches cmp_01 reference inside 95% CI. No hard gate failures. Three soft warnings G1 blur/low coverage, G2 single scale, G3 smooth residuals/DW 0.25 are all disclosed in Error analysis with bootstrap mitigation noted. No proves/generalisation overreach.",
+  "overrides": []
+}

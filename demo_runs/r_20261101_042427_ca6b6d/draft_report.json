@@ -1,0 +1,30 @@
+{
+  "lang": "en",
+  "title": "Pendulum swing of brass nut for gravity measurement",
+  "aim": "To measure gravity from the swing of a hanging brass nut and to test the predicted period.",
+  "setup": "A brass nut hangs from a red string pinned to a wall and swings as a pendulum. A hand briefly enters during release and some blur is visible during fast motion.",
+  "method": "We tracked the nut frame by frame, trimmed the release to keep clean swinging, fitted a damped sine curve to the sideways motion, estimated uncertainty by resampling, corrected the period for swing size, and converted the period to gravity using the stated string length. Fit quality is {{c07}} and the scale from the spoken length is {{c06}}.",
+  "results": [
+    {
+      "heading": "Gravity and period",
+      "body": "The headline gravity is {{c01}} with reference comparison {{c04}}. The measured period is {{c02}} and the size corrected value is {{c03}}. The resampling interval is {{c05}}."
+    },
+    {
+      "heading": "Calibration and quality",
+      "body": "Scale and fit details are {{c06}} and {{c07}}."
+    }
+  ],
+  "hypothesis_evaluation": "The predicted period is not supported, since the measured period {{c02}} differs clearly and the formal test gives {{c08}}.",
+  "error_analysis": "Main uncertainties come from the stated string length, pivot and scale estimation, motion blur during fast swings, brief hand contact at release, and small wobble not captured by a simple damped sine. The resampling interval {{c05}} captures timing variation but not systematic length bias.",
+  "conclusion": "The pendulum gives a gravity value {{c01}} consistent with the reference within {{c04}}, supported by a strong fit {{c07}}.",
+  "claims_used": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "status": "PASS_WITH_WARNINGS",
+  "unsupported_claims": [],
+  "overreaching_statements": [],
+  "gate_failures": [],
+  "fix_instructions": [],
+  "rerecord_tips_en": [],
+  "rerecord_tips_id": [],
+  "auditor_model": "muse-spark-1.3",
+  "notes": "All numeric claims c01-c08 match evidence summaries. g consistent with reference inside 95% CI, hypothesis correctly evaluated as not_supported vs 1.5s prediction. No hard gate failures. Two soft warnings exist: G2 single_scale and G3 smooth_model_mismatch (DW 0.08). Both are disclosed: setup/error mention reliance on stated string length with systematic length bias and no second scale, plus motion blur/hand contact and wobble not captured by simple damped sine. No overreach or unsupported numbers.",
+  "overrides": []
+}

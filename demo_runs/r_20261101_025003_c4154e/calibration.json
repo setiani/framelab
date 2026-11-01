@@ -1,0 +1,19 @@
+{
+  "primary": {
+    "method": "object_diameter",
+    "m_per_px": 0.0013222478726207848,
+    "sigma_m_per_px": 0.00003624211178505984,
+    "details": {
+      "diameter_px": 50.671285911923206,
+      "diameter_sigma_px": 1.1649021333475382,
+      "diameter_m": 0.067,
+      "dilation_px": 1.5,
+      "n": 265,
+      "rel_sigma": 0.027409468780785803
+    }
+  },
+  "secondary": null,
+  "agreement_pct": null,
+  "pivot_px": null,
+  "length_px_measured": null
+}

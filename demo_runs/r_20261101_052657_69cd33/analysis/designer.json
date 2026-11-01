@@ -1,0 +1,102 @@
+{
+  "title": "Pendulum Period vs String Length / Periode Bandul vs Panjang Tali",
+  "changed_variable": "string_length",
+  "controlled_variables": [
+    "same bob mass and shape",
+    "same small release angle",
+    "same support and location",
+    "same video timing and lighting method"
+  ],
+  "new_values": [
+    {
+      "value": 0.4,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 0.8,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.2,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.6,
+      "unit": "m",
+      "source_turn": null
+    }
+  ],
+  "prediction_en": "If string length is increased while keeping mass and small angle the same, the oscillation period will increase from {{p1}} to {{p2}} to {{p3}} to {{p4}}, following period proportional to the square-root of length.",
+  "prediction_id": "Jika panjang tali ditambah dengan massa dan sudut kecil yang sama, periode ayunan akan bertambah dari {{p1}} menjadi {{p2}} menjadi {{p3}} menjadi {{p4}}, mengikuti periode sebanding dengan akar kuadrat panjang.",
+  "protocol_steps_en": [
+    "Tie the same household bob such as a metal spoon or plastic toy to a thin string. Do not use glass.",
+    "Make four lengths measured from pivot to centre of bob, fixed firmly to a door frame below two metres height.",
+    "Pull the bob to one side only a small angle and release without pushing.",
+    "Record each swing from the side with a phone in slow-motion with bright room light to avoid motion blur.",
+    "For each length, time ten full back-and-forth swings and divide by ten to get the period. Repeat three times and average.",
+    "Keep the same bob, same angle, same camera and same ruler for scale in all trials."
+  ],
+  "protocol_steps_id": [
+    "Ikat bandul rumah tangga yang sama seperti sendok logam atau mainan plastik pada tali tipis. Jangan gunakan kaca.",
+    "Buat empat panjang yang diukur dari tumpuan ke pusat bandul, diikat kuat pada kusen pintu di bawah ketinggian dua meter.",
+    "Tarik bandul ke samping hanya dengan sudut kecil lalu lepaskan tanpa didorong.",
+    "Rekam setiap ayunan dari samping dengan ponsel dalam mode gerak lambat dengan cahaya ruangan yang terang untuk menghindari buram gerak.",
+    "Untuk setiap panjang, ukur waktu sepuluh ayunan penuh bolak-balik dan bagi dengan sepuluh untuk mendapatkan periode. Ulangi tiga kali dan rata-ratakan.",
+    "Gunakan bandul, sudut, kamera, dan penggaris skala yang sama untuk semua percobaan."
+  ],
+  "safety_notes_en": [
+    "Use household objects only, support height at most two metres.",
+    "No fire, no mains electricity, no glass bob.",
+    "Children must have adult supervision."
+  ],
+  "safety_notes_id": [
+    "Gunakan hanya benda rumah tangga, tinggi tumpuan maksimal dua meter.",
+    "Tanpa api, tanpa listrik arus utama, tanpa bandul kaca.",
+    "Anak-anak harus didampingi orang dewasa."
+  ],
+  "predicted_values": [
+    {
+      "id": "p1",
+      "input": 0.4,
+      "unit_in": "m",
+      "predicted": 1.2622801147475042,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_01"
+    },
+    {
+      "id": "p2",
+      "input": 0.8,
+      "unit_in": "m",
+      "predicted": 1.7851336577897867,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_02"
+    },
+    {
+      "id": "p3",
+      "input": 1.2,
+      "unit_in": "m",
+      "predicted": 2.1863332921265495,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_03"
+    },
+    {
+      "id": "p4",
+      "input": 1.6,
+      "unit_in": "m",
+      "predicted": 2.5245602294950085,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_04"
+    }
+  ],
+  "models": [
+    "meta-models/muse-spark-open-1026",
+    "muse-spark-1.3"
+  ]
+}

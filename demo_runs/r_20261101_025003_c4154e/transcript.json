@@ -1,0 +1,22 @@
+{
+  "text": "drop height of one point two meters ball diameter of six point seven centimeters.",
+  "turns": [
+    {
+      "index": 0,
+      "text": "drop height of one point two meters",
+      "start_ms": 460,
+      "end_ms": 3500,
+      "speaker": null
+    },
+    {
+      "index": 1,
+      "text": "ball diameter of six point seven centimeters.",
+      "start_ms": 4300,
+      "end_ms": 10300,
+      "speaker": null
+    }
+  ],
+  "audio_duration_ms": 13840,
+  "language_hint": null,
+  "session_id": "voyager/transcribe/094DD3E76956474A9E482B898C603C2E"
+}

@@ -1,0 +1,31 @@
+{
+  "target": {
+    "concept": "brass nut",
+    "object_id": "1",
+    "merged_ids": [],
+    "objects": {
+      "1": {
+        "coverage": 0.7867924528301887,
+        "range_px": 304.552383088385,
+        "mean_area_px": 1095.4268585131895,
+        "first_frame": 113,
+        "last_frame": 529,
+        "n": 417
+      }
+    },
+    "first_mask_frame": 113
+  },
+  "reference": null,
+  "string": {
+    "concept": "string",
+    "frame_index": 265,
+    "major_axis_px": 895.5995110139908,
+    "minor_axis_px": 9.50094374396409,
+    "bbox": [
+      276.0,
+      16.0,
+      365.0,
+      802.0
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "lang": "en",
+  "title": "Pendulum swing with metal nut",
+  "aim": "The aim was to measure gravity using a swinging metal nut and to check the guessed swing time. The experiment uses video tracking of side to side motion.",
+  "setup": "The setup was a metal nut hanging from a red string fixed on a green wall. The nut swung side to side while the camera recorded. The string length stated by the student provided the scale for conversion {{c06}}.",
+  "method": "The position of the nut was tracked in each video frame across the swing, trimming hand contact at the start. A damped sine curve was fitted to the side to side motion, which follows the trajectory very closely {{c07}}. The swing time was estimated with a block bootstrap that respects smooth residual patterns {{c05}}, then corrected for swing width {{c03}} and converted to gravity using the stated string length.",
+  "results": [
+    {
+      "heading": "Swing period",
+      "body": "The measured oscillation repeats steadily. The measured period is given by the fit {{c02}}, with bootstrap support {{c05}} and width corrected value {{c03}}. The close fit supports that the timing is robust."
+    },
+    {
+      "heading": "Gravity value",
+      "body": "Using the period and the string length scale, the gravity result is {{c01}}. Comparison with the reference shows close agreement {{c04}}. The scale basis is documented separately {{c06}}."
+    }
+  ],
+  "hypothesis_evaluation": "The guess was about one and a half seconds. The measured period is shorter {{c02}}, with corrected support {{c03}}. The formal test does not support the guess {{c08}}.",
+  "error_analysis": "Main uncertainties come from the string length, which relies on a spoken value without a visible ruler, and from pivot localisation on the wall. Motion blur caused missing detections in some frames, and a wide swing plus air drag leaves a smooth pattern in residuals, though the bootstrap accounts for this and the fit remains very close {{c07}}. Scale agreement could not be checked because only one scale method exists {{c06}}. These effects are included in the reported interval {{c01}}.",
+  "conclusion": "The pendulum gives a gravity value consistent with the reference within the stated interval {{c01}} {{c04}}. The result rests on a clean timing measurement {{c02}} and a well fitting model {{c07}}, limited mainly by length uncertainty.",
+  "claims_used": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08"
+  ]
+}

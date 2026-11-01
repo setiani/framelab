@@ -1,0 +1,43 @@
+{
+  "experiment": "free_fall",
+  "target_concept": "white baseball",
+  "target_alt_concepts": [
+    "baseball",
+    "white ball"
+  ],
+  "target_hint_box": null,
+  "reference": {
+    "concept": "measuring tape",
+    "length_m": null,
+    "length_source": "unknown",
+    "frame_hint_s": 5.0
+  },
+  "object_diameter_m": 0.067,
+  "spoken_params": {
+    "drop_height": {
+      "value": 1.2,
+      "unit": "m",
+      "source_turn": 0
+    },
+    "ball_diameter": {
+      "value": 6.7,
+      "unit": "cm",
+      "source_turn": 1
+    }
+  },
+  "analysis_window_s": [
+    10.0,
+    13.5
+  ],
+  "motion_axis": "y",
+  "hypothesis": null,
+  "hypothesis_prediction": null,
+  "language": "en",
+  "setup_description": "A white baseball is held against a dark wall beside a vertical yellow measuring tape and then dropped to the tiled floor.",
+  "confidence": 0.88,
+  "warnings": [
+    "hand occludes ball just before release",
+    "motion blur during fast fall",
+    "measuring tape may not be exactly in plane of motion"
+  ]
+}

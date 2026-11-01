@@ -1,0 +1,35 @@
+{
+  "experiment": "pendulum",
+  "target_concept": "brass nut",
+  "target_alt_concepts": [
+    "metal nut",
+    "gold bell"
+  ],
+  "target_hint_box": null,
+  "reference": null,
+  "object_diameter_m": null,
+  "spoken_params": {
+    "string_length": {
+      "value": 40.0,
+      "unit": "cm",
+      "source_turn": 0
+    }
+  },
+  "analysis_window_s": [
+    0.5,
+    9.6
+  ],
+  "motion_axis": "x",
+  "hypothesis": "I estimate the period to be one one and a half seconds.",
+  "hypothesis_prediction": {
+    "value": 1.5,
+    "unit": "s",
+    "source_turn": 0
+  },
+  "language": "en",
+  "setup_description": "A small brass nut hangs from a red string pinned to a green wall and swings as a pendulum.",
+  "confidence": 0.8,
+  "warnings": [
+    "no scale reference visible in the frame"
+  ]
+}

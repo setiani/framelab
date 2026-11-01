@@ -1,0 +1,18 @@
+{
+  "primary": {
+    "method": "spoken_length",
+    "m_per_px": 0.0008275217272802326,
+    "sigma_m_per_px": 0.00005319316810908376,
+    "details": {
+      "length_m": 0.5,
+      "length_sigma_m": 0.005,
+      "r_px": 604.2137426932835,
+      "sigma_r_px": 38.36604784614319,
+      "rel_sigma": 0.06428008637780502
+    }
+  },
+  "secondary": null,
+  "agreement_pct": null,
+  "pivot_px": null,
+  "length_px_measured": null
+}

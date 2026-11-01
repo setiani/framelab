@@ -1,0 +1,108 @@
+{
+  "title": "Free-fall time vs drop height with fixed object",
+  "changed_variable": "height",
+  "controlled_variables": [
+    "same falling object (small dense ball, e.g. marble/ball bearing)",
+    "same release method (hold at rest, no push)",
+    "same vertical drop without initial velocity",
+    "same timing method and same observer/device",
+    "same location / no wind (indoor)"
+  ],
+  "new_values": [
+    {
+      "value": 0.5,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.0,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.5,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 2.0,
+      "unit": "m",
+      "source_turn": null
+    }
+  ],
+  "prediction_en": "If we drop from the lowest height the fall time is predicted to be {{p1}}, from the second height {{p2}}, from the third height {{p3}}, and from the highest height {{p4}}. This tests the relation t proportional to sqrt of height and checks whether the low g is due to height-scale or timing error.",
+  "prediction_id": "Jika dijatuhkan dari ketinggian terendah waktu jatuh diprediksi {{p1}}, dari ketinggian kedua {{p2}}, dari ketinggian ketiga {{p3}}, dan dari ketinggian tertinggi {{p4}}. Ini menguji hubungan t sebanding dengan akar tinggi dan memeriksa apakah nilai g rendah disebabkan kesalahan skala tinggi atau waktu.",
+  "protocol_steps_en": [
+    "1. Choose one small dense ball (marble). Use the SAME ball for all heights. Work indoors on a non-slip floor with clear space.",
+    "2. Make a vertical height scale on a wall using a tape measure: mark 0.5 m, 1.0 m, 1.5 m, 2.0 m from the floor to the RELEASE point (bottom of ball). Check with a second ruler/app if possible; keep the tape vertical using a wall corner.",
+    "3. Prepare to time the fall: use a smartphone in slow-motion video mode (e.g. 120/240 fps) fixed on a tripod/books facing the drop. This is more accurate than stopwatch.",
+    "4. For h = 0.5 m: hold ball so its bottom is exactly at the 0.5 m mark, with other hand ready. Hold steady, no push. Release without throwing and let video record impact.",
+    "5. Review video frame-by-frame: count frames between release and first contact with floor to get fall time. Repeat this height 5 times and record each time.",
+    "6. Repeat steps 4-5 for h = 1.0 m, then 1.5 m, then 2.0 m (max). Do not exceed 2.0 m. For higher heights use a stable stool only with adult help; keep body clear of falling path.",
+    "7. For each height calculate average time and compare to predictions {{p1}} to {{p4}}. Plot average t vs sqrt(h) – it should be a straight line if physics holds. If all times are systematically longer/shorter, suspect timing or height scale error causing g=8.60 m/s²."
+  ],
+  "protocol_steps_id": [
+    "1. Pilih satu bola kecil yang padat (kelereng). Gunakan bola YANG SAMA untuk semua tinggi. Lakukan di dalam ruangan di lantai tidak licin dengan ruang kosong.",
+    "2. Buat skala tinggi vertikal di dinding menggunakan meteran: tandai 0,5 m, 1,0 m, 1,5 m, 2,0 m dari lantai ke TITIK LEPAS (bagian bawah bola). Periksa dengan penggaris/aplikasi kedua jika memungkinkan; jaga pita tetap vertikal menggunakan sudut dinding.",
+    "3. Siapkan perekaman waktu: gunakan smartphone dalam mode video gerak lambat (mis. 120/240 fps) yang dipasang di tripod/tumpukan buku menghadap jatuhan. Ini lebih akurat daripada stopwatch.",
+    "4. Untuk h = 0,5 m: pegang bola sehingga bagian bawahnya tepat di tanda 0,5 m, tangan lain siap. Pegang diam, jangan didorong. Lepaskan tanpa melempar dan biarkan video merekam tumbukan.",
+    "5. Tinjau video frame-by-frame: hitung frame antara lepas dan kontak pertama dengan lantai untuk mendapatkan waktu jatuh. Ulangi tinggi ini 5 kali dan catat setiap waktu.",
+    "6. Ulangi langkah 4-5 untuk h = 1,0 m, lalu 1,5 m, lalu 2,0 m (maks). Jangan melebihi 2,0 m. Untuk tinggi yang lebih tinggi gunakan bangku stabil hanya dengan bantuan orang dewasa; jaga tubuh jauh dari jalur jatuh.",
+    "7. Untuk setiap tinggi hitung waktu rata-rata dan bandingkan dengan prediksi {{p1}} hingga {{p4}}. Buat grafik t rata-rata vs akar(h) – seharusnya garis lurus jika fisika berlaku. Jika semua waktu secara sistematis lebih lama/pendek, curigai kesalahan waktu atau skala tinggi yang menyebabkan g=8,60 m/s²."
+  ],
+  "safety_notes_en": [
+    "Do not exceed 2 m height.",
+    "Use household objects only – no glass balls, no heavy weights that could injure feet.",
+    "No fire, no mains electricity, no mains-powered gates; phone battery only.",
+    "Ensure drop zone is clear of people and breakables; wear closed shoes.",
+    "Adult supervision required for children, especially when using a stool to reach 2.0 m; keep footing stable."
+  ],
+  "safety_notes_id": [
+    "Jangan melebihi tinggi 2 m.",
+    "Gunakan hanya benda rumah tangga – tanpa bola kaca, tanpa beban berat yang dapat melukai kaki.",
+    "Tanpa api, tanpa listrik PLN, tanpa gerbang berdaya listrik; hanya baterai ponsel.",
+    "Pastikan area jatuh bebas dari orang dan barang pecah belah; kenakan sepatu tertutup.",
+    "Pengawasan orang dewasa diperlukan untuk anak-anak, terutama saat menggunakan bangku untuk mencapai 2,0 m; jaga pijakan tetap stabil."
+  ],
+  "predicted_values": [
+    {
+      "id": "p1",
+      "input": 0.5,
+      "unit_in": "m",
+      "predicted": 0.3410153454351954,
+      "unit_out": "s",
+      "formula": "t = √(2h/g), no air drag",
+      "evidence_id": "pred_01"
+    },
+    {
+      "id": "p2",
+      "input": 1.0,
+      "unit_in": "m",
+      "predicted": 0.4822685264917993,
+      "unit_out": "s",
+      "formula": "t = √(2h/g), no air drag",
+      "evidence_id": "pred_02"
+    },
+    {
+      "id": "p3",
+      "input": 1.5,
+      "unit_in": "m",
+      "predicted": 0.5906559044544099,
+      "unit_out": "s",
+      "formula": "t = √(2h/g), no air drag",
+      "evidence_id": "pred_03"
+    },
+    {
+      "id": "p4",
+      "input": 2.0,
+      "unit_in": "m",
+      "predicted": 0.6820306908703908,
+      "unit_out": "s",
+      "formula": "t = √(2h/g), no air drag",
+      "evidence_id": "pred_04"
+    }
+  ],
+  "models": [
+    "meta-models/muse-spark-open-1026"
+  ]
+}

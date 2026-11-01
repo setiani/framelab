@@ -1,0 +1,15 @@
+{
+  "text": "drop height of thirty centimeter ball diameter of six point seven centimeter",
+  "turns": [
+    {
+      "index": 0,
+      "text": "drop height of thirty centimeter ball diameter of six point seven centimeter",
+      "start_ms": 60,
+      "end_ms": 5580,
+      "speaker": null
+    }
+  ],
+  "audio_duration_ms": 8320,
+  "language_hint": null,
+  "session_id": "voyager/transcribe/45AD1DE403BD4931B50140AB2A140287"
+}

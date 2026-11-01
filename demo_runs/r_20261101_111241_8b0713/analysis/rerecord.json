@@ -1,0 +1,20 @@
+{
+  "reasons": [
+    "Track coverage is low with many missing detections consistent with motion blur during the fast fall",
+    "Ruler scale and ball-diameter scale disagree strongly suggesting the ruler is out of the plane of motion",
+    "Quadratic fit residuals are large suggesting the window includes contact or hand interference",
+    "Derived gravity is far outside the plausible range indicating scale and tracking bias"
+  ],
+  "tips_en": [
+    "Record in bright light and use slow-motion mode to reduce motion blur",
+    "Tape the ruler flat on the wall directly behind the ball fall path so ruler and ball are the same distance from the camera",
+    "Hold the ball steady beside the ruler, then release gently without pushing and move the hand out of view",
+    "Keep the phone still on a support with the ruler and full fall visible from release to floor impact"
+  ],
+  "tips_id": [
+    "Rekam di cahaya terang dan gunakan mode gerak lambat agar bola tidak buram",
+    "Tempel penggaris tegak di dinding tepat di belakang jalur jatuh bola agar jarak ke kamera sama",
+    "Pegang bola dengan tenang di samping penggaris lalu lepaskan perlahan tanpa didorong dan jauhkan tangan dari kamera",
+    "Diamkan ponsel di atas penyangga dengan penggaris dan seluruh jatuhan terlihat dari lepas sampai lantai"
+  ]
+}

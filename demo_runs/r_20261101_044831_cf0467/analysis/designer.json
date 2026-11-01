@@ -1,0 +1,110 @@
+{
+  "title": "Period vs String Length: Testing T = 2π√(L/g) at Home / Periode vs Panjang Tali: Menguji T = 2π√(L/g) di Rumah",
+  "changed_variable": "string_length",
+  "controlled_variables": [
+    "release angle (small, ~5-10° same for all trials) / sudut pelepasan (kecil, ~5-10° sama untuk semua percobaan)",
+    "bob mass (same bob) / massa beban (beban yang sama)",
+    "measurement method and timer / metode pengukuran dan pewaktu"
+  ],
+  "new_values": [
+    {
+      "value": 0.5,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.0,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 1.5,
+      "unit": "m",
+      "source_turn": null
+    },
+    {
+      "value": 2.0,
+      "unit": "m",
+      "source_turn": null
+    }
+  ],
+  "prediction_en": "The predicted period for the shortest tested length is {{p1}}, for the second tested length is {{p2}}, for the third tested length is {{p3}}, and for the longest tested length is {{p4}}, consistent with period increasing as the square root of length.",
+  "prediction_id": "Prediksi periode untuk panjang terpendek yang diuji adalah {{p1}}, untuk panjang kedua yang diuji adalah {{p2}}, untuk panjang ketiga yang diuji adalah {{p3}}, dan untuk panjang terpanjang yang diuji adalah {{p4}}, sesuai dengan periode yang meningkat sebanding dengan akar kuadrat panjang.",
+  "protocol_steps_en": [
+    "Tie a small heavy bob (e.g., nut, bolt, or small toy) to a thin string. Measure length from pivot edge to centre of bob with a tape measure.",
+    "Set up pivot: tape string firmly to top of door frame or sturdy table edge, allowing free swing without hitting walls. Keep total length ≤2.0 m, heights ≤2 m. Ask an adult to help secure it.",
+    "Set length 1: Adjust string to 0.5 m total length. Mark string at pivot point with pen/tape so you can reset.",
+    "Pull bob sideways only a small angle (~5-10°, about a hand width sideways for 1 m string). Release gently without pushing. Let it swing.",
+    "Measure period: Use phone stopwatch. Time 10 complete back-and-forth swings (start/stop on same side). Divide total time by 10 to get period T. Record.",
+    "Repeat step 5 three times for 0.5 m and take average.",
+    "Change ONLY length: Lengthen string to 1.0 m (re-measure pivot to bob centre), keep same bob, same small release angle. Repeat timing (3 x 10 swings, average).",
+    "Repeat for 1.5 m and then 2.0 m, using identical procedure. Do not change bob or swing angle.",
+    "Compare measured periods to predictions and plot T² vs L to check linear relationship."
+  ],
+  "protocol_steps_id": [
+    "Ikat beban kecil yang berat (misalnya mur, baut, atau mainan kecil) pada tali tipis. Ukur panjang dari tepi tumpuan ke pusat beban dengan meteran.",
+    "Siapkan tumpuan: rekatkan tali dengan kuat di bagian atas kusen pintu atau tepi meja yang kokoh, biarkan berayun bebas tanpa menabrak dinding. Jaga total panjang ≤2,0 m, ketinggian ≤2 m. Minta bantuan orang dewasa untuk mengamankannya.",
+    "Atur panjang 1: Sesuaikan tali menjadi panjang total 0,5 m. Tandai tali pada titik tumpuan dengan pena/selotip agar dapat diatur ulang.",
+    "Tarik beban ke samping hanya dengan sudut kecil (~5-10°, sekitar satu lebar tangan ke samping untuk tali 1 m). Lepaskan dengan lembut tanpa mendorong. Biarkan berayun.",
+    "Ukur periode: Gunakan stopwatch ponsel. Ukur waktu 10 ayunan bolak-balik lengkap (mulai/berhenti di sisi yang sama). Bagi total waktu dengan 10 untuk mendapatkan periode T. Catat.",
+    "Ulangi langkah 5 tiga kali untuk 0,5 m dan ambil rata-rata.",
+    "Ubah HANYA panjang: Panjangkan tali menjadi 1,0 m (ukur ulang tumpuan ke pusat beban), pertahankan beban yang sama, sudut pelepasan kecil yang sama. Ulangi pengukuran waktu (3 x 10 ayunan, rata-rata).",
+    "Ulangi untuk 1,5 m dan kemudian 2,0 m, dengan prosedur yang identik. Jangan mengganti beban atau sudut ayunan.",
+    "Bandingkan periode terukur dengan prediksi dan buat grafik T² vs L untuk memeriksa hubungan linear."
+  ],
+  "safety_notes_en": [
+    "Household objects only; no fire, no mains electricity, no glass.",
+    "Keep heights at most 2 m; use a stable pivot (door frame), do not climb on unstable chairs; adult supervision required.",
+    "Children must be supervised by an adult for the entire experiment.",
+    "Use small, light bob; ensure area below is clear so bob cannot hit people or break objects.",
+    "Swing with small angle only to avoid large forces and hitting nearby objects."
+  ],
+  "safety_notes_id": [
+    "Hanya benda rumah tangga; tanpa api, tanpa listrik utama, tanpa kaca.",
+    "Jaga ketinggian paling tinggi 2 m; gunakan tumpuan yang stabil (kusen pintu), jangan memanjat kursi yang tidak stabil; diperlukan pengawasan orang dewasa.",
+    "Anak-anak harus diawasi oleh orang dewasa selama seluruh percobaan.",
+    "Gunakan beban kecil dan ringan; pastikan area di bawah bersih agar beban tidak mengenai orang atau merusak benda.",
+    "Ayunkan hanya dengan sudut kecil untuk menghindari gaya besar dan membentur benda di sekitar."
+  ],
+  "predicted_values": [
+    {
+      "id": "p1",
+      "input": 0.5,
+      "unit_in": "m",
+      "predicted": 1.4305488926054708,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_01"
+    },
+    {
+      "id": "p2",
+      "input": 1.0,
+      "unit_in": "m",
+      "predicted": 2.023101645560469,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_02"
+    },
+    {
+      "id": "p3",
+      "input": 1.5,
+      "unit_in": "m",
+      "predicted": 2.477783364704069,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_03"
+    },
+    {
+      "id": "p4",
+      "input": 2.0,
+      "unit_in": "m",
+      "predicted": 2.8610977852109416,
+      "unit_out": "s",
+      "formula": "T = 2π·√(L/g), small angle",
+      "evidence_id": "pred_04"
+    }
+  ],
+  "models": [
+    "meta-models/muse-spark-open-1026"
+  ]
+}

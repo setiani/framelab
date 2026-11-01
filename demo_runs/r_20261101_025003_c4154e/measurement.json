@@ -1,0 +1,31 @@
+{
+  "target": {
+    "concept": "white baseball",
+    "object_id": "0",
+    "merged_ids": [],
+    "objects": {
+      "0": {
+        "coverage": 1.0,
+        "range_px": 872.3962010193537,
+        "mean_area_px": 2343.724528301887,
+        "first_frame": 495,
+        "last_frame": 759,
+        "n": 265
+      }
+    },
+    "first_mask_frame": 495
+  },
+  "reference": {
+    "concept": "measuring tape",
+    "frame_index": 275,
+    "major_axis_px": 1093.3354462361071,
+    "minor_axis_px": 18.239024857073808,
+    "bbox": [
+      356.0,
+      0.0,
+      386.0,
+      934.0
+    ]
+  },
+  "string": null
+}

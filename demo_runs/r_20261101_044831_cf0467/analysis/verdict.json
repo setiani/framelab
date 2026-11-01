@@ -1,0 +1,12 @@
+{
+  "status": "PASS_WITH_WARNINGS",
+  "unsupported_claims": [],
+  "overreaching_statements": [],
+  "gate_failures": [],
+  "fix_instructions": [],
+  "rerecord_tips_en": [],
+  "rerecord_tips_id": [],
+  "auditor_model": "muse-spark-1.3",
+  "notes": "All numeric results are backed by ledger claims with supporting evidence. c01-c05 and c07 CIs match evidence; c06 and c08 qualitative claims match fit_01 and cal_02. Hypothesis correctly reported as not_supported per cmp_02. No hard gate failures. Soft warnings G2 single_scale and G3 smooth_model_mismatch are both disclosed in Error analysis (scale rests only on spoken length; residuals show smooth pattern, block bootstrap used). No proves/generalisation overreach; gravity described as close/consistent with reference inside CI per cmp_01.",
+  "overrides": []
+}

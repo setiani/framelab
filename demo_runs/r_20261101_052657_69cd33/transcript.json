@@ -1,0 +1,15 @@
+{
+  "text": "The string is fifty centimeters long. I estimate the period to be one and a half seconds.",
+  "turns": [
+    {
+      "index": 0,
+      "text": "The string is fifty centimeters long. I estimate the period to be one and a half seconds.",
+      "start_ms": 220,
+      "end_ms": 5900,
+      "speaker": null
+    }
+  ],
+  "audio_duration_ms": 9520,
+  "language_hint": null,
+  "session_id": "voyager/transcribe/62FC25B249154F579C60D71FB68E7C65"
+}

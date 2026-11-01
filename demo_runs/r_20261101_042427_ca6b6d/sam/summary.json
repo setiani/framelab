@@ -1,0 +1,31 @@
+{
+  "target_concept_used": "brass nut",
+  "attempts": [
+    {
+      "concept": "brass nut",
+      "media": "video",
+      "frame_index": null,
+      "status": "completed",
+      "n_objects": 1,
+      "frames_with_mask": {
+        "3": 436
+      },
+      "raw_log_path": "runs\\r_20261101_042427_ca6b6d\\sam\\target_brass_nut.sam.json",
+      "cost_usd": 0.1208
+    },
+    {
+      "concept": "string",
+      "media": "image",
+      "frame_index": 302,
+      "status": "completed",
+      "n_objects": 2,
+      "frames_with_mask": {
+        "0": 1,
+        "1": 1
+      },
+      "raw_log_path": "runs\\r_20261101_042427_ca6b6d\\sam\\string.sam.json",
+      "cost_usd": 0.0025
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,31 @@
+{
+  "target": {
+    "concept": "white baseball",
+    "object_id": "0",
+    "merged_ids": [],
+    "objects": {
+      "0": {
+        "coverage": 1.0,
+        "range_px": 658.2515886897091,
+        "mean_area_px": 11489.682170542636,
+        "first_frame": 240,
+        "last_frame": 497,
+        "n": 258
+      }
+    },
+    "first_mask_frame": 240
+  },
+  "reference": {
+    "concept": "ruler",
+    "frame_index": 60,
+    "major_axis_px": 815.0057889524056,
+    "minor_axis_px": 83.85699514755201,
+    "bbox": [
+      325.0,
+      101.0,
+      405.0,
+      824.0
+    ]
+  },
+  "string": null
+}

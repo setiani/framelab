@@ -1,0 +1,31 @@
+{
+  "target": {
+    "concept": "box:metal nut",
+    "object_id": "1",
+    "merged_ids": [],
+    "objects": {
+      "1": {
+        "coverage": 1.0,
+        "range_px": 217.26977738702507,
+        "mean_area_px": 409.4057142857143,
+        "first_frame": 0,
+        "last_frame": 524,
+        "n": 525
+      }
+    },
+    "first_mask_frame": 0
+  },
+  "reference": null,
+  "string": {
+    "concept": "string",
+    "frame_index": 262,
+    "major_axis_px": 786.2255349136175,
+    "minor_axis_px": 8.519715532170252,
+    "bbox": [
+      275.0,
+      124.0,
+      344.0,
+      819.0
+    ]
+  }
+}

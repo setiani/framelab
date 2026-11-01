@@ -1,0 +1,30 @@
+{
+  "target_concept_used": "white baseball",
+  "attempts": [
+    {
+      "concept": "white baseball",
+      "media": "video",
+      "frame_index": null,
+      "status": "completed",
+      "n_objects": 1,
+      "frames_with_mask": {
+        "0": 258
+      },
+      "raw_log_path": "runs\\r_20261101_111241_8b0713\\sam\\target_white_baseball.sam.json",
+      "cost_usd": 0.0516
+    },
+    {
+      "concept": "ruler",
+      "media": "image",
+      "frame_index": 60,
+      "status": "completed",
+      "n_objects": 1,
+      "frames_with_mask": {
+        "0": 1
+      },
+      "raw_log_path": "runs\\r_20261101_111241_8b0713\\sam\\reference_ruler.sam.json",
+      "cost_usd": 0.0025
+    }
+  ],
+  "warnings": []
+}

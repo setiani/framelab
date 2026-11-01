@@ -1,0 +1,32 @@
+{
+  "status": "NEEDS_RERECORD",
+  "unsupported_claims": [],
+  "overreaching_statements": [],
+  "gate_failures": [
+    "G1",
+    "G2",
+    "G3"
+  ],
+  "fix_instructions": [],
+  "rerecord_tips_en": [
+    "Record in bright light and use slow-motion mode to reduce motion blur",
+    "Tape the ruler flat on the wall directly behind the ball fall path so ruler and ball are the same distance from the camera",
+    "Hold the ball steady beside the ruler, then release gently without pushing and move the hand out of view",
+    "Keep the phone still on a support with the ruler and full fall visible from release to floor impact",
+    "Track coverage is 71%: the object was not found in some frames, usually from motion blur. Use slow motion or more light.",
+    "Ruler scale (0.415 mm/px) and ball-diameter scale (0.668 mm/px) disagree by 61.1%. The ruler is probably closer to or farther from the camera than the ball's path. Tape the ruler to the wall directly behind the falling ball.",
+    "The fit explains the track poorly (R² 0.9975, RMS 5.02 px). The fit window may include contact or hands."
+  ],
+  "rerecord_tips_id": [
+    "Rekam di cahaya terang dan gunakan mode gerak lambat agar bola tidak buram",
+    "Tempel penggaris tegak di dinding tepat di belakang jalur jatuh bola agar jarak ke kamera sama",
+    "Pegang bola dengan tenang di samping penggaris lalu lepaskan perlahan tanpa didorong dan jauhkan tangan dari kamera",
+    "Diamkan ponsel di atas penyangga dengan penggaris dan seluruh jatuhan terlihat dari lepas sampai lantai",
+    "Cakupan lintasan 71%: objek tidak terdeteksi di sebagian frame, biasanya karena blur gerak. Gunakan slow motion atau tambah cahaya.",
+    "Skala penggaris (0.415 mm/px) dan skala diameter bola (0.668 mm/px) berbeda 61.1%. Penggaris kemungkinan tidak sejajar dengan lintasan bola. Tempel penggaris di dinding tepat di belakang lintasan bola.",
+    "Fit menjelaskan lintasan dengan buruk (R² 0.9975, RMS 5.02 px). Jendela fit mungkin memuat kontak atau tangan."
+  ],
+  "auditor_model": "code",
+  "notes": "Analyst requested re-recording; a hard gate with remedy rerecord failed, so code confirms it.",
+  "overrides": []
+}

@@ -1,0 +1,29 @@
+{
+  "probe": {
+    "width": 1080,
+    "height": 1920,
+    "rotation_deg": -90,
+    "duration_s": 8.304022,
+    "avg_fps": 58.04416066109864,
+    "r_fps": 60.0,
+    "nb_frames": 482,
+    "is_vfr": true,
+    "has_audio": true,
+    "codec": "h264"
+  },
+  "norm_width": 540,
+  "norm_height": 960,
+  "fps": 60.0,
+  "fps_num": 60,
+  "fps_den": 1,
+  "file_fps": 60.0,
+  "effective_fps": 60.0,
+  "capture_fps_source": "file",
+  "n_frames": 498,
+  "video_path": "ingest\\video.mp4",
+  "video_with_audio_path": "ingest\\video_with_audio.mp4",
+  "audio_path": "ingest\\audio.wav",
+  "clip_offset_frame": 240,
+  "clip_path": "ingest\\analysis.mp4",
+  "keyframes": {}
+}

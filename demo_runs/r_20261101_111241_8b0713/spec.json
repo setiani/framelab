@@ -1,0 +1,42 @@
+{
+  "experiment": "free_fall",
+  "target_concept": "white baseball",
+  "target_alt_concepts": [
+    "white ball",
+    "baseball"
+  ],
+  "target_hint_box": null,
+  "reference": {
+    "concept": "ruler",
+    "length_m": 0.3,
+    "length_source": "visible_marking",
+    "frame_hint_s": 1.0
+  },
+  "object_diameter_m": 0.067,
+  "spoken_params": {
+    "drop_height": {
+      "value": 30.0,
+      "unit": "cm",
+      "source_turn": 0
+    },
+    "ball_diameter": {
+      "value": 6.7,
+      "unit": "cm",
+      "source_turn": 0
+    }
+  },
+  "analysis_window_s": [
+    5.0,
+    8.3
+  ],
+  "motion_axis": "y",
+  "hypothesis": null,
+  "hypothesis_prediction": null,
+  "language": "en",
+  "setup_description": "A hand holds a white baseball beside a vertical ruler taped to a cardboard box above a tiled floor before dropping it.",
+  "confidence": 0.85,
+  "warnings": [
+    "motion blur during fast fall",
+    "ruler taped to box may be slightly behind plane of motion"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "target_concept_used": "box:metal nut",
+  "attempts": [
+    {
+      "concept": "metal nut",
+      "media": "video",
+      "frame_index": null,
+      "status": "empty",
+      "n_objects": 0,
+      "frames_with_mask": {},
+      "raw_log_path": "runs\\r_20261101_052657_69cd33\\sam\\target_metal_nut.sam.json",
+      "cost_usd": 0.105
+    },
+    {
+      "concept": "brass nut",
+      "media": "video",
+      "frame_index": null,
+      "status": "empty",
+      "n_objects": 0,
+      "frames_with_mask": {},
+      "raw_log_path": "runs\\r_20261101_052657_69cd33\\sam\\target_brass_nut.sam.json",
+      "cost_usd": 0.105
+    },
+    {
+      "concept": "small nut",
+      "media": "video",
+      "frame_index": null,
+      "status": "empty",
+      "n_objects": 0,
+      "frames_with_mask": {},
+      "raw_log_path": "runs\\r_20261101_052657_69cd33\\sam\\target_small_nut.sam.json",
+      "cost_usd": 0.105
+    },
+    {
+      "concept": "metal nut",
+      "media": "video",
+      "frame_index": null,
+      "status": "completed",
+      "n_objects": 1,
+      "frames_with_mask": {
+        "1": 525
+      },
+      "raw_log_path": "runs\\r_20261101_052657_69cd33\\sam\\target_box_prompt.sam.json",
+      "cost_usd": 0.105
+    },
+    {
+      "concept": "string",
+      "media": "image",
+      "frame_index": 262,
+      "status": "completed",
+      "n_objects": 2,
+      "frames_with_mask": {
+        "0": 1,
+        "1": 1
+      },
+      "raw_log_path": "runs\\r_20261101_052657_69cd33\\sam\\string.sam.json",
+      "cost_usd": 0.0025
+    }
+  ],
+  "warnings": [
+    "SAM found no usable track for 'metal nut'",
+    "SAM found no usable track for 'brass nut'",
+    "SAM found no usable track for 'small nut'"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "status": "PASS_WITH_WARNINGS",
+  "unsupported_claims": [],
+  "overreaching_statements": [],
+  "gate_failures": [],
+  "fix_instructions": [],
+  "rerecord_tips_en": [],
+  "rerecord_tips_id": [],
+  "auditor_model": "muse-spark-1.3",
+  "notes": "Headline 8.60 ±0.25 [8.12,9.08] matches der_02/ci_02; comparison -12.08% outside CI matches cmp_02; scale single-method, fit-quality pass, and plausibility out-of-range (8.60 outside 9.0-10.6) all disclosed with caution language. No hard-gate failures. Earlier auto-window result (c01-c06) superseded by manual trimmed window (win_02/fit_02). No proves/generalisation; conclusion limits to present video/scale.",
+  "overrides": []
+}

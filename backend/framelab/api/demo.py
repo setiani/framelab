@@ -24,9 +24,9 @@ from typing import Any
 from framelab.events import EventBus
 from framelab.schemas import RunState, Stage, utcnow
 from framelab.store import (
-    RunNotFoundError,
     RunStore,
     read_json,
+    read_text_with_retry,
     replace_with_retry,
     write_json_atomic,
 )
@@ -94,11 +94,14 @@ def load_samples(store: RunStore) -> list[Sample]:
     samples: list[Sample] = []
     for item in manifest.get("samples", []):
         run_id = str(item.get("run_id", ""))
+        # Read the cached copy itself: on the machine that recorded the samples the same run id
+        # also exists in runs/ (the original), and that one must not hide the card.
+        path = cached_run_dir(store, run_id)
+        if path is None:
+            continue
         try:
-            if not store.is_sample(run_id):
-                continue
-            state = store.load_state(run_id)
-        except RunNotFoundError:
+            state = RunState.model_validate_json(read_text_with_retry(path / "state.json"))
+        except (ValueError, OSError):
             continue
         samples.append(
             Sample(
@@ -110,6 +113,15 @@ def load_samples(store: RunStore) -> list[Sample]:
             )
         )
     return samples
+
+
+def cached_run_dir(store: RunStore, run_id: str) -> Path | None:
+    """The run's folder in the sample cache, or None (also for ids that are not run ids)."""
+    root = store.sample_root
+    if root is None or not run_id.startswith("r_") or not run_id.replace("_", "").isalnum():
+        return None
+    path = root / run_id
+    return path if (path / "state.json").is_file() else None
 
 
 def find_sample(store: RunStore, key: str) -> Sample:
@@ -254,8 +266,8 @@ async def run_replay(
     state = store.load_state(run_id)
     if state.replay_of is None:
         raise SampleError(f"{run_id} is not a replay")
-    src_dir = store.run_dir(state.replay_of)
-    source = store.load_state(state.replay_of)
+    src_dir = cached_run_dir(store, state.replay_of) or store.run_dir(state.replay_of)
+    source = RunState.model_validate_json(read_text_with_retry(src_dir / "state.json"))
     copier = _Copier(src_dir, store.run_dir(run_id))
     events = _read_events(src_dir / "events.jsonl")
     try:

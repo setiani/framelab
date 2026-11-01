@@ -1,0 +1,34 @@
+{
+  "lang": "id",
+  "title": "Ayunan Bandul Mur Kuningan",
+  "aim": "Tujuannya adalah mengukur seberapa cepat mur kuningan yang digantung berayun dan menggunakan waktu itu untuk memperkirakan gravitasi, serta menguji periode yang diprediksi.",
+  "setup": "Sebuah mur kuningan kecil tergantung pada tali merah yang dipasang di dinding hijau dan berayun sebagai bandul.",
+  "method": "Pelacakan memberikan posisi mur pada setiap bingkai video. Jendela otomatis memotong sentuhan tangan dan menjaga ayunan yang stabil. Kurva sinus teredam dicocokkan pada gerak ke samping, yang menangkap ayunan berulang yang perlahan mengecil. Pengambilan sampel ulang berulang memberikan rentang kepercayaan untuk waktu. Panjang tali mengubah ayunan dalam piksel menjadi panjang fisik, dan hubungan bandul kemudian memberikan gravitasi dari panjang dan periode.",
+  "results": [
+    {
+      "heading": "Waktu ayunan",
+      "body": "Ayunan berulang secara teratur. Periode yang terukur adalah {{c02}} dan periode yang dikoreksi amplitudo adalah {{c03}}. Pemeriksaan bootstrap sesuai {{c07}}."
+    },
+    {
+      "heading": "Perkiraan gravitasi",
+      "body": "Dari waktu dan panjang tali, gravitasi adalah {{c01}}. Perbandingan dengan acuan memberikan {{c04}}."
+    },
+    {
+      "heading": "Kecocokan dan skala",
+      "body": "Model mengikuti lintasan dengan sangat dekat {{c06}}. Skala bergantung pada panjang yang disebutkan dan bentuk titik gantung {{c08}}."
+    }
+  ],
+  "hypothesis_evaluation": "Periode yang diprediksi lebih panjang daripada ayunan yang terukur {{c02}}, dan uji formal tidak mendukung prediksi tersebut {{c05}}.",
+  "error_analysis": "Batasan utama berasal dari skala panjang, yang hanya berdasarkan panjang tali yang disebutkan dan bentuk titik gantung {{c08}}, sehingga kesalahan pada panjang yang dinyatakan langsung mengubah gravitasi. Ayunannya cukup lebar, jadi hambatan udara dan pengaruh amplitudo penting, yang diatasi dengan waktu yang dikoreksi {{c03}}. Gangguan pelacakan kecil dan model mengikuti gerak dengan sangat dekat {{c06}}, tetapi sisa selisih menunjukkan pola yang halus, artinya model sinus teredam sederhana tidak sempurna. Rentang bootstrap {{c07}} memperhitungkan pola itu dan memberikan sebaran yang jujur.",
+  "conclusion": "Ayunan terjadi lebih cepat dari prediksi, sehingga prediksi tidak didukung {{c05}}. Nilai perkiraan gravitasi mendekati acuan {{c04}} dengan nilai {{c01}}. Dalam batas skala dan kecocokan yang dinyatakan, waktu ayunan bandul memberikan hasil yang konsisten.",
+  "claims_used": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08"
+  ]
+}

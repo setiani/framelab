@@ -1,0 +1,19 @@
+{
+  "status": "REJECT",
+  "unsupported_claims": [],
+  "overreaching_statements": [],
+  "gate_failures": [
+    "G3"
+  ],
+  "fix_instructions": [
+    "Result 'Comparison and quality' and Error analysis: disclose G2 Scale consistency WARN (single_scale - only one scale method, consistency cannot be checked) linked to c04/cal_01.",
+    "Result 'Comparison and quality' and Error analysis: disclose G4 Physical plausibility WARN (diagnosis out_of_range - headline 8.77 m/s2 is outside plausible 9.0-10.6) linked to c01/c02.",
+    "Reanalysis to address G3 Fit quality HARD FAIL (systematic_residuals, DW 0.30 in fit_01): re-run fit_model using alternative manual window win_02 (11.182-11.491 s, 18 points) instead of win_01, check for camera movement, then update c01/der_01, c02/cmp_01, c03/ci_01 and c05/fit_01 with new R2/rms/DW and bootstrap CI before re-auditing.",
+    "Ledger/claims: align c06 evidence ['gate_03'] to G3 fail record so gate evidence is traceable; do not claim support for hypothesis (spec hypothesis is null)."
+  ],
+  "rerecord_tips_en": [],
+  "rerecord_tips_id": [],
+  "auditor_model": "muse-spark-1.3",
+  "notes": "Draft correctly cites c01/c02/c03 supported by der_01/cmp_01/ci_01 and c05 supported by fit_01 R2=0.99995 rms 1.48px DW 0.30, and acknowledges G3 fail as caution with no overreaching proof language. However hard fail G3 (remedy reanalyze) precludes PASS; soft warnings G2 and G4 are not disclosed, and error analysis mentions only G3/systematics plus planner warnings. Requires reanalysis with win_02 and explicit disclosure of G2/G4.",
+  "overrides": []
+}

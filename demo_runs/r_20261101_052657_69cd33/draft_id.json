@@ -1,0 +1,30 @@
+{
+  "lang": "id",
+  "title": "Ayunan bandul dengan mur logam",
+  "aim": "Tujuannya adalah mengukur gravitasi menggunakan mur logam yang berayun dan memeriksa tebakan waktu ayunan. Percobaan ini menggunakan pelacakan video dari gerak ke kiri dan ke kanan.",
+  "setup": "Alatnya berupa mur logam yang digantung pada tali merah yang dipasang pada dinding hijau. Mur berayun ke kiri dan ke kanan sementara kamera merekam. Panjang tali yang dinyatakan oleh siswa menjadi skala untuk konversi {{c06}}.",
+  "method": "Posisi mur dilacak pada setiap bingkai video selama ayunan, dengan memotong sentuhan tangan di awal. Kurva sinus teredam dicocokkan pada gerak ke kiri dan ke kanan, yang mengikuti lintasan dengan sangat dekat {{c07}}. Waktu ayunan diperkirakan dengan bootstrap blok yang menghormati pola sisa yang halus {{c05}}, lalu dikoreksi untuk lebar ayunan {{c03}} dan diubah menjadi gravitasi menggunakan panjang tali yang dinyatakan.",
+  "results": [
+    {
+      "heading": "Periode ayunan",
+      "body": "Osilasi yang diukur berulang secara stabil. Periode yang diukur diberikan oleh kecocokan {{c02}}, dengan dukungan bootstrap {{c05}} dan nilai terkoreksi lebar {{c03}}. Kecocokan yang dekat mendukung bahwa pengaturan waktu kuat."
+    },
+    {
+      "heading": "Nilai gravitasi",
+      "body": "Dengan menggunakan periode dan skala panjang tali, hasil gravitasi adalah {{c01}}. Perbandingan dengan acuan menunjukkan kesepakatan yang dekat {{c04}}. Dasar skala didokumentasikan secara terpisah {{c06}}."
+    }
+  ],
+  "hypothesis_evaluation": "Tebakannya sekitar satu setengah detik. Periode yang diukur lebih pendek {{c02}}, dengan dukungan terkoreksi {{c03}}. Uji formal tidak mendukung tebakan itu {{c08}}.",
+  "error_analysis": "Ketidakpastian utama berasal dari panjang tali, yang mengandalkan nilai yang diucapkan tanpa penggaris yang terlihat, dan dari penentuan titik gantung pada dinding. Keburaman gerak menyebabkan deteksi hilang pada beberapa bingkai, dan ayunan yang lebar ditambah hambatan udara meninggalkan pola halus pada sisa, walaupun bootstrap memperhitungkan hal ini dan kecocokannya tetap sangat dekat {{c07}}. Kesepakatan skala tidak dapat diperiksa karena hanya ada satu metode skala {{c06}}. Pengaruh ini sudah termasuk dalam rentang yang dilaporkan {{c01}}.",
+  "conclusion": "Bandul menghasilkan nilai gravitasi yang sesuai dengan acuan dalam rentang yang dinyatakan {{c01}} {{c04}}. Hasil ini didukung oleh pengukuran waktu yang bersih {{c02}} dan model yang sangat cocok {{c07}}, yang terutama dibatasi oleh ketidakpastian panjang.",
+  "claims_used": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08"
+  ]
+}

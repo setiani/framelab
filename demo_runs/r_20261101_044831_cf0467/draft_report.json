@@ -1,0 +1,34 @@
+{
+  "lang": "en",
+  "title": "Brass Nut Pendulum Swing",
+  "aim": "The aim was to measure how fast a hanging brass nut swings and to use that timing to estimate gravity, and to test the predicted period.",
+  "setup": "A small brass nut hangs from a red string pinned to a green wall and swings as a pendulum.",
+  "method": "Tracking gives the nut position in each video frame. An automatic window trims hand contact and keeps steady swinging. A damped sine curve is fitted to the sideways motion, which captures the repeating swing that slowly shrinks. Repeated resampling gives the confidence range for timing. String length turns the pixel swing into physical length, and the pendulum relation then gives gravity from length and period.",
+  "results": [
+    {
+      "heading": "Swing timing",
+      "body": "The swing repeats regularly. The measured period is {{c02}} and the amplitude corrected period is {{c03}}. The bootstrap check agrees {{c07}}."
+    },
+    {
+      "heading": "Gravity estimate",
+      "body": "From timing and string length, gravity is {{c01}}. Comparison with the reference gives {{c04}}."
+    },
+    {
+      "heading": "Fit and scale",
+      "body": "The model follows the trajectory very closely {{c06}}. The scale rests on spoken length and pivot geometry {{c08}}."
+    }
+  ],
+  "hypothesis_evaluation": "The predicted period is longer than the measured swing {{c02}}, and the formal test does not support the prediction {{c05}}.",
+  "error_analysis": "Main limits come from the length scale, which rests only on the spoken string length and pivot geometry {{c08}}, so any error in stated length moves gravity directly. The swing is fairly wide, so air drag and amplitude effects matter, handled by the corrected timing {{c03}}. Tracking noise is small and the model follows the motion closely {{c06}}, but residuals show a smooth pattern, meaning the simple damped sine is not perfect. The bootstrap range {{c07}} allows for that pattern and gives an honest spread.",
+  "conclusion": "The swing is faster than predicted, so the prediction is not supported {{c05}}. The gravity estimate is close to the reference {{c04}} with value {{c01}}. Within the stated scale and fitting limits, the pendulum timing gives a consistent result.",
+  "claims_used": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08"
+  ]
+}

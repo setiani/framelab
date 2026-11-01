@@ -1,0 +1,43 @@
+{
+  "series_id": "s_20261101_053115_7397ab",
+  "created_at": "2026-11-01T05:31:15.063113Z",
+  "experiment": "pendulum",
+  "run_ids": [
+    "r_20261101_052657_69cd33",
+    "r_20261101_044831_cf0467",
+    "r_20261101_042427_ca6b6d"
+  ],
+  "independent_variable": "string_length",
+  "status": "done",
+  "headline": {
+    "quantity": "g",
+    "value": 10.38048933000072,
+    "sigma": 0.4116309545287101,
+    "ci95": [
+      9.573692659124449,
+      11.187286000876993
+    ],
+    "unit": "m/s^2",
+    "evidence": "der_01",
+    "formatted_en": "10.4 ± 0.4 m/s²",
+    "formatted_id": "10,4 ± 0,4 m/s²",
+    "ref": 9.781,
+    "rel_diff_pct": 6.129121051024642,
+    "n": 0.4671835254505637,
+    "sigma_n": 0.01908621612194146,
+    "n_formatted": "0.467 ± 0.019",
+    "n_evidence": "der_02",
+    "sqrt_law": "supported",
+    "flags": [],
+    "n_runs": 3,
+    "lengths_m": [
+      0.3,
+      0.4,
+      0.5
+    ],
+    "comparison_evidence": "cmp_01"
+  },
+  "artifacts": {
+    "series_json": "analysis\\series.json"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "samples": [
+    {
+      "key": "free_fall",
+      "run_id": "r_20261101_025003_c4154e",
+      "title": {
+        "en": "Free fall",
+        "id": "Jatuh bebas"
+      },
+      "blurb": {
+        "en": "A dropped ball, filmed in slow motion. The result is g with its uncertainty.",
+        "id": "Bola dijatuhkan dan direkam slow motion. Hasilnya g beserta ketidakpastiannya."
+      }
+    },
+    {
+      "key": "pendulum",
+      "run_id": "r_20261101_042427_ca6b6d",
+      "title": {
+        "en": "Pendulum",
+        "id": "Bandul"
+      },
+      "blurb": {
+        "en": "A pendulum with a spoken string length. The period gives g.",
+        "id": "Bandul dengan panjang tali yang diucapkan. Periodenya menghasilkan g."
+      }
+    },
+    {
+      "key": "trap",
+      "run_id": "r_20261101_111241_8b0713",
+      "title": {
+        "en": "Bad recording",
+        "id": "Rekaman bermasalah"
+      },
+      "blurb": {
+        "en": "The ruler is closer to the camera than the motion. The auditor asks for a new recording.",
+        "id": "Penggaris lebih dekat ke kamera daripada gerakannya. Auditor meminta rekaman ulang."
+      }
+    }
+  ]
+}

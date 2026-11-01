@@ -347,3 +347,16 @@ def test_tests_do_not_see_the_repository_demo_runs() -> None:
     from framelab.config import Settings
 
     assert "no_demo_runs" in str(Settings().demo_dir)
+
+
+def test_samples_show_when_the_original_run_is_also_in_runs(tmp_path) -> None:
+    """Real laptop, 1 Nov: the cached samples also existed in runs/ and no card appeared."""
+    settings = Settings(runs_dir=tmp_path / "runs", demo_dir=make_demo_dir(tmp_path / "demo_runs"))
+    make_finished_run(settings.runs_dir)  # the original, same run id, not marked as a sample
+    with TestClient(create_app(settings, runner=fake_runner())) as client:
+        samples = client.get("/api/samples").json()
+        rid = client.post("/api/samples/free_fall/replay").json()["run_id"]
+        wait_until(lambda: client.get(f"/api/runs/{rid}").json()["stage"] == "done")
+        run = client.get(f"/api/runs/{rid}").json()
+    assert [s["key"] for s in samples] == ["free_fall"]
+    assert run["replay_of"] == RUN_ID and run["verdict"] == "PASS"
