@@ -357,3 +357,21 @@ def test_series_accepts_agent_path_pendulum_runs(tmp_path) -> None:
     store.save_state(state)
     with pytest.raises(series_mod.SeriesError):
         series_mod.run_point(store, state.run_id)
+
+
+def test_choose_track_accepts_the_ids_the_summary_shows() -> None:
+    """Real run, 1 Nov: the summary listed candidates ['0', '1'] and both were refused."""
+    from types import SimpleNamespace
+
+    from framelab.agent.session import AnalysisSession, ToolError
+
+    session = AnalysisSession.__new__(AnalysisSession)
+    session.observations = [SimpleNamespace(object_id=i, concept="metal nut") for i in (0, 1)]
+    session.track = SimpleNamespace(concept="metal nut", track_id="metal_nut_0")
+    adopted: list = []
+    session._adopt_track = lambda obs, object_id, reason: adopted.append(object_id)
+    session.choose_track("1")
+    session.choose_track("metal_nut_0")
+    assert adopted == [1, 0]
+    with pytest.raises(ToolError):
+        session.choose_track("7")

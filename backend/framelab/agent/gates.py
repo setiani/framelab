@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 class GateThresholds(BaseModel):
     g1_min_coverage: float = 0.90
+    # Pendulum (real videos, 1 Nov): blur at the bottom of the swing costs 10–15 % of the frames
+    # while hundreds of points remain (R² 0.998). Between the two limits G1 only warns.
+    g1_fail_coverage: float | None = None
     g1_max_jump_factor: float = 5.0
     g1_min_points: int = 8  # pendulum: 60
     g1_min_cycles: float = 3.0  # pendulum only
@@ -32,6 +35,13 @@ class GateThresholds(BaseModel):
     g3_max_rms_px: float = 2.0
     g3_min_durbin_watson: float = 1.0  # below → warn; below 0.5 → fail
     g3_fail_durbin_watson: float = 0.5
+    # Pendulum (real-video finding, 1 Nov): hundreds of points per fit make Durbin–Watson drop
+    # near 0 for any smooth model mismatch (finite amplitude, air drag), even with R² 0.9997
+    # and RMS 1.5 px. There it is a warning only; the block bootstrap already widens the CI.
+    g3_durbin_watson_soft: bool = False
+    # RMS limit relative to the swing amplitude (pendulum): passes if within either limit,
+    # because the absolute pixel limit depends on how large the swing is in the frame.
+    g3_max_rms_rel_amplitude: float | None = None
     g4_range: tuple[float, float] = (9.0, 10.6)
     g4_slowmo_k: tuple[int, ...] = (2, 4, 8)
 
@@ -103,6 +113,14 @@ TEMPLATES: dict[str, tuple[str, str]] = {
         "The residuals are correlated (Durbin–Watson {dw}). Check the fit window and whether the "
         "camera moved.",
         "Residu berkorelasi (Durbin–Watson {dw}). Periksa jendela fit dan apakah kamera bergerak.",
+    ),
+    "smooth_model_mismatch": (
+        "The fit is very close (R² {r2}, RMS {rms} px), but the residuals still follow a smooth "
+        "pattern (Durbin–Watson {dw}), as a wide swing or air drag causes. The uncertainty is "
+        "computed with a block bootstrap, which allows for this.",
+        "Fit sangat dekat (R² {r2}, RMS {rms} px), tetapi residunya masih membentuk pola halus "
+        "(Durbin–Watson {dw}), seperti akibat ayunan lebar atau hambatan udara. Ketidakpastian "
+        "dihitung dengan block bootstrap yang memperhitungkan hal ini.",
     ),
     "out_of_range": (
         "The headline value {value} is outside the plausible range {lo}–{hi}. The data are "
@@ -280,7 +298,9 @@ def gate_track(
         thr["min_cycles"] = thresholds.g1_min_cycles
         fill["min"] = thresholds.g1_min_cycles
     name = "Track integrity"
-    if coverage < thresholds.g1_min_coverage:
+    fail_below = thresholds.g1_fail_coverage
+    low_coverage = coverage < thresholds.g1_min_coverage
+    if low_coverage and (fail_below is None or coverage < fail_below):
         return _gate("G1", name, "fail", hard=True, diagnosis="low_coverage_blur",
                      remedy="rerecord", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
     if n_valid < min_points:
@@ -294,6 +314,9 @@ def gate_track(
                      remedy="rerecord", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
     if window_warnings and "object_left_frame" in window_warnings:
         return _gate("G1", name, "warn", hard=False, diagnosis="object_left_frame",
+                     remedy="none", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
+    if low_coverage:  # between g1_fail_coverage and g1_min_coverage (pendulum)
+        return _gate("G1", name, "warn", hard=False, diagnosis="low_coverage_blur",
                      remedy="none", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
     return _gate("G1", name, "pass", hard=True, metrics=metrics, thresholds=thr)
 
@@ -359,16 +382,25 @@ def gate_fit(
     }
     name = "Fit quality"
     fill = {"r2": f"{r2:.4f}", "rms": f"{rms:.2f}", "dw": f"{dw:.2f}"}
-    if r2 < thresholds.g3_min_r2 or rms > thresholds.g3_max_rms_px:
+    amplitude = abs(float(fit.get("params", {}).get("A", 0.0)))
+    rms_ok = rms <= thresholds.g3_max_rms_px
+    rel = thresholds.g3_max_rms_rel_amplitude
+    if not rms_ok and rel is not None and amplitude > 0:
+        thr["max_rms_rel_amplitude"] = rel
+        metrics["rms_rel_amplitude"] = round(rms / amplitude, 4)
+        rms_ok = rms <= rel * amplitude
+    if r2 < thresholds.g3_min_r2 or not rms_ok:
         return _gate("G3", name, "fail", hard=True, diagnosis="wrong_window", remedy="reanalyze",
                      metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
-    if dw < thresholds.g3_fail_durbin_watson:
+    soft = thresholds.g3_durbin_watson_soft
+    if dw < thresholds.g3_fail_durbin_watson and not soft:
         return _gate("G3", name, "fail", hard=True, diagnosis="systematic_residuals",
                      remedy="reanalyze", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
     if dw < thresholds.g3_min_durbin_watson:
-        return _gate("G3", name, "warn", hard=False, diagnosis="systematic_residuals",
-                     remedy="reanalyze", metrics=metrics, thresholds=thr, fill=fill)  # fmt: skip
-    amplitude = float(fit.get("params", {}).get("A", 0.0))
+        diagnosis = "smooth_model_mismatch" if soft else "systematic_residuals"
+        return _gate("G3", name, "warn", hard=False, diagnosis=diagnosis,
+                     remedy="none" if soft else "reanalyze", metrics=metrics, thresholds=thr,
+                     fill=fill)  # fmt: skip
     if drift_px_s is not None and period_s and amplitude > 0:
         # 06 §7: pendulum drift |d|·T > 0.1·A → warn (camera moved)
         metrics["drift_px_s"] = round(drift_px_s, 3)

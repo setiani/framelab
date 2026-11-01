@@ -105,6 +105,11 @@ def test_strict_schema_closes_every_object() -> None:
         ("dua puluh sentimeter", 20.0),
         ("dua belas", 12.0),
         ("twenty five centimeters", 25.0),
+        # real transcripts, 1 Nov: the hypothesis was dropped because these were not read
+        ("I estimate the period to be one and a half seconds long", 1.5),
+        ("I estimate the period to be one and and a half second.", 1.5),
+        ("saya kira periodenya satu setengah detik", 1.5),
+        ("The string is fifty centimeters long", 50.0),
     ],
 )
 def test_value_in_text_reads_digits_and_words(text: str, value: float) -> None:
@@ -252,3 +257,19 @@ def test_apply_overrides_wins_and_merges_spoken_params() -> None:
     assert merged.target_concept == "red ball"
     assert set(merged.spoken_params) == {"drop_height", "string_length"}
     assert spec.target_concept == "orange ball"  # the original spec is untouched
+
+
+def test_the_pendulum_string_is_never_the_scale_reference() -> None:
+    """Real run, 1 Nov: "red string" as the ruler made G2 refuse a good pendulum video."""
+    from framelab.schemas import ReferenceObject
+
+    base = ExperimentSpec(experiment="pendulum", target_concept="metal nut",
+                          analysis_window_s=(0, 10), motion_axis="x", confidence=0.9)  # fmt: skip
+    string = base.model_copy(update={"reference": ReferenceObject(
+        concept="red string", length_m=0.5, length_source="spoken")})  # fmt: skip
+    spec, warnings = planner.drop_string_reference(string)
+    assert spec.reference is None and warnings and spec.warnings == warnings
+    ruler = base.model_copy(update={"reference": ReferenceObject(concept="measuring tape")})
+    assert planner.drop_string_reference(ruler)[0].reference is not None
+    fall = string.model_copy(update={"experiment": "free_fall"})
+    assert planner.drop_string_reference(fall)[0].reference is not None

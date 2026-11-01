@@ -8,6 +8,7 @@ import pytest
 from framelab.agent import gates
 from framelab.agent.gates import TEMPLATES, GateThresholds, slowmo_factor
 from framelab.agent.ledger import Ledger
+from framelab.physics.experiments import REGISTRY
 from framelab.schemas import Calibration, ReportDraft, ScaleEstimate, Track, TrackPoint
 
 THR = GateThresholds()
@@ -215,3 +216,39 @@ def test_every_gate_diagnosis_has_english_and_indonesian_text() -> None:
 
 def test_report_draft_validates_the_same_shape() -> None:
     assert ReportDraft.model_validate(draft()).claims_used == ["c01"]
+
+
+# Real pendulum runs (1 Nov): R² 0.9997, RMS 1.6 px, DW 0.03 were refused as NEEDS_RERECORD.
+PENDULUM = REGISTRY["pendulum"].gates
+
+
+@pytest.mark.parametrize(
+    ("r2", "rms", "amplitude", "dw", "status", "diagnosis"),
+    [
+        (0.99965, 1.65, 137.0, 0.03, "warn", "smooth_model_mismatch"),  # the real 50 cm run
+        (0.99986, 1.54, 187.0, 0.18, "warn", "smooth_model_mismatch"),  # the real 30 cm run
+        (0.9998, 3.5, 200.0, 1.5, "pass", None),  # 1.75 % of the amplitude: within 3 %
+        (0.9998, 8.0, 200.0, 1.5, "fail", "wrong_window"),  # 4 % of the amplitude
+        (0.6919, 55.5, 108.0, 0.01, "fail", "wrong_window"),  # the real failed 30 cm run
+    ],
+)
+def test_g3_pendulum(r2, rms, amplitude, dw, status, diagnosis) -> None:
+    fit = {"r2": r2, "rms_px": rms, "durbin_watson": dw, "params": {"A": amplitude}}
+    result = gates.gate_fit(fit, PENDULUM)
+    assert (result.status, result.diagnosis) == (status, diagnosis)
+    if status == "warn":
+        assert not result.hard and "block bootstrap" in result.message_en
+
+
+def test_g3_free_fall_keeps_the_hard_durbin_watson_limit() -> None:
+    fit = {"r2": 0.999, "rms_px": 0.5, "durbin_watson": 0.4, "params": {"A": 100.0}}
+    assert gates.gate_fit(fit, REGISTRY["free_fall"].gates).status == "fail"
+
+
+def test_g1_pendulum_low_coverage_warns_until_75_percent() -> None:
+    """Real run, 1 Nov: 433 valid points, 89 % coverage, R² 0.999 was refused."""
+    warn = gates.gate_track(track(445, 500), PENDULUM, min_points=60, cycles=5.7)
+    assert (warn.status, warn.diagnosis, warn.hard) == ("warn", "low_coverage_blur", False)
+    fail = gates.gate_track(track(350, 500), PENDULUM, min_points=60, cycles=5.7)
+    assert fail.status == "fail"
+    assert gates.gate_track(track(89, 100), THR, min_points=8).status == "fail"  # free fall

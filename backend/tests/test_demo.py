@@ -332,3 +332,18 @@ def test_sample_series_is_listed_and_read_only(demo_settings) -> None:
     assert [(s["series_id"], s["sample"]) for s in listed] == [(sid, True)]
     assert detail["sample"] is True
     assert analyze.status_code == 409 and add.status_code == 409
+
+
+def test_build_demo_cache_refuses_a_passing_run_as_the_trap(tmp_path, no_key) -> None:
+    script = _cache_script()
+    runs = tmp_path / "runs"
+    make_finished_run(runs)  # verdict PASS
+    args = ["--runs-dir", str(runs), "--out", str(tmp_path / "out"), "--sample", f"trap={RUN_ID}"]
+    assert script.main(args) == 1
+    assert not (tmp_path / "out").exists()
+
+
+def test_tests_do_not_see_the_repository_demo_runs() -> None:
+    from framelab.config import Settings
+
+    assert "no_demo_runs" in str(Settings().demo_dir)

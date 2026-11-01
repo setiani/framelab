@@ -138,6 +138,30 @@ def sync_object_diameter(spec: ExperimentSpec) -> tuple[ExperimentSpec, list[str
     ), warnings
 
 
+_STRING_WORDS = frozenset({"string", "strings", "thread", "cord", "rope", "twine", "line",
+                           "tali", "benang", "senar"})  # fmt: skip
+
+
+def drop_string_reference(spec: ExperimentSpec) -> tuple[ExperimentSpec, list[str]]:
+    """A pendulum's own string is not a scale reference.
+
+    Real run, 1 Nov: the Planner named "red string" (0.5 m, the spoken length) as the ruler.
+    The string mask (swinging, thin, with the slack beyond the pivot) gave a scale 12 % off the
+    pivot-to-bob length, and G2 refused the run. The spoken string length is already used
+    through the pivot (length source "spoken"), so the reference is dropped.
+    """
+    ref = spec.reference
+    if spec.experiment != "pendulum" or ref is None:
+        return spec, []
+    if not _STRING_WORDS.intersection(ref.concept.lower().split()):
+        return spec, []
+    warning = (f"Dropped reference {ref.concept!r}: the pendulum string is the length being "
+               "measured, not a ruler")  # fmt: skip
+    return spec.model_copy(update={"reference": None, "warnings": [*spec.warnings, warning]}), [
+        warning
+    ]
+
+
 def apply_overrides(spec: ExperimentSpec, overrides: dict[str, Any]) -> ExperimentSpec:
     """Typed user flags win over the Planner. ``spoken_params`` merge key by key."""
     if not overrides:
@@ -174,6 +198,8 @@ _TENS_WORDS = {
 }  # fmt: skip
 _DECIMAL_SEPARATORS = frozenset({"koma", "point"})
 _HALF_WORDS = frozenset({"setengah", "half"})
+# "one and a half", "satu setengah", "one and and a half" (a stutter in the transcript)
+_HALF_FILLERS = frozenset({"and", "a", "an", "dan"})
 
 
 def _read_int(tokens: list[str], i: int) -> tuple[int | None, int]:
@@ -203,9 +229,10 @@ def _read_int(tokens: list[str], i: int) -> tuple[int | None, int]:
 def spoken_values(text: str) -> list[float]:
     """Numbers in a transcript, as digits ("0.45", "0,45") or as words.
 
-    Words: "satu meter" → 1, "sepuluh sentimeter" → 10, "setengah meter" → 0.5, and decimals
-    such as "nol koma empat lima" or "zero point four five" → 0.45. Other compound forms are not
-    read, so a value written that way is treated as untraceable (and dropped).
+    Words: "satu meter" → 1, "sepuluh sentimeter" → 10, "setengah meter" → 0.5, "satu setengah"
+    or "one and a half" → 1.5, and decimals such as "nol koma empat lima" or "zero point four
+    five" → 0.45. Other compound forms are not read, so a value written that way is treated as
+    untraceable (and dropped).
     """
     values = [float(m.replace(",", ".")) for m in re.findall(r"\d+(?:[.,]\d+)?", text)]
     tokens = re.findall(r"[a-z]+", text.lower())
@@ -230,6 +257,11 @@ def spoken_values(text: str) -> list[float]:
                 i = j
                 continue
         values.append(float(whole))
+        j = after
+        while j < len(tokens) and j - after < 3 and tokens[j] in _HALF_FILLERS:
+            j += 1
+        if j < len(tokens) and tokens[j] in _HALF_WORDS:
+            values.append(whole + 0.5)
         i = after
     return values
 
@@ -469,8 +501,9 @@ async def run(
             raise PlannerError("Planner output invalid: " + "; ".join(remaining))
 
     spec, diameter_warnings = sync_object_diameter(spec)
+    spec, string_warnings = drop_string_reference(spec)
     if emit:
-        for warning in diameter_warnings:
+        for warning in [*diameter_warnings, *string_warnings]:
             emit("warning", message=warning)
     if ledger is not None:
         record_spoken_evidence(spec, transcript, ledger)

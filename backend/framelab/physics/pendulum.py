@@ -46,14 +46,38 @@ def amplitude_factor(theta_rad: np.ndarray) -> float:
     return float(np.mean(1.0 + th**2 / 16.0 + 11.0 * th**4 / 3072.0))
 
 
-def trim_ends(t: np.ndarray, x: np.ndarray) -> tuple[int, int, FitResult]:
-    """Drop leading/trailing points with large residuals (hand at release or catching the bob).
+def swing_start(x: np.ndarray, *, max_fraction: float = 0.6) -> int:
+    """Index where the swing has certainly begun: the first crossing of the rest position.
 
-    At most 10 % of the points per end; threshold max(4·rms, 2 px). Returns (start, end, fit).
+    Students hold the bob aside for a few seconds before letting go (real videos, 1 Nov: up to
+    half the clip). That held part is far from the rest position and never crosses it, so it is
+    skipped; a clip that starts mid-swing loses at most a quarter period. The rest position is
+    the median of the second half. Returns 0 if the first crossing comes implausibly late.
     """
-    start, end = 0, len(t) - 1
-    fit = fit_damped_sine(t, x)
-    limit_n = int(MAX_TRIM_FRACTION * len(t))
+    x = np.asarray(x, dtype=float)
+    if x.size < 4:
+        return 0
+    side = np.sign(x - np.median(x[x.size // 2 :]))
+    crossings = np.flatnonzero(side[1:] * side[:-1] < 0)
+    if crossings.size == 0 or crossings[0] + 1 > max_fraction * x.size:
+        return 0
+    return int(crossings[0] + 1)
+
+
+def trim_ends(t: np.ndarray, x: np.ndarray) -> tuple[int, int, FitResult]:
+    """Drop the held part before release, then leading/trailing points with large residuals
+    (the hand at release or catching the bob).
+
+    Residual trimming: at most 10 % of the points per end; threshold max(4·rms, 2 px).
+    Returns (start, end, fit) as indices into ``t``.
+    """
+    first = swing_start(x)
+    if len(t) - first < 12:
+        first = 0
+    start, end = first, len(t) - 1
+    fit = fit_damped_sine(t[start:], x[start:])
+    n = len(t) - first
+    limit_n = int(MAX_TRIM_FRACTION * n)
     thr = max(4.0 * fit.rms_px, 2.0)
     resid = np.abs(fit.residuals)
     lead = 0
@@ -63,7 +87,7 @@ def trim_ends(t: np.ndarray, x: np.ndarray) -> tuple[int, int, FitResult]:
     while trail < limit_n and resid[-1 - trail] > thr:
         trail += 1
     if lead or trail:
-        start, end = lead, len(t) - 1 - trail
+        start, end = first + lead, len(t) - 1 - trail
         fit = fit_damped_sine(t[start : end + 1], x[start : end + 1])
     return start, end, fit
 

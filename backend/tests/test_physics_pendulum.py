@@ -9,7 +9,12 @@ import pytest
 
 from framelab.physics.derive import hypothesis_test, pendulum_series
 from framelab.physics.models import fit_damped_sine, guess_damped_sine
-from framelab.physics.pendulum import amplitude_factor, analyze_pendulum, period_from_omega
+from framelab.physics.pendulum import (
+    amplitude_factor,
+    analyze_pendulum,
+    period_from_omega,
+    swing_start,
+)
 from framelab.pipeline.calibrate import pivot_from_track, spoken_length_scale
 from tests.synth import exact_period, make_pendulum, small_angle_period
 
@@ -87,6 +92,28 @@ def test_trims_hand_catching_the_bob() -> None:
     r = analyze_pendulum(t, x, length_m=L, sigma_length_m=0.0, radius_px=R_PX, bootstrap_n=50)
     assert r.end <= len(t) - 10  # the first pulled points deviate < threshold
     assert r.g == pytest.approx(9.78, rel=0.003)
+
+
+def test_skips_the_bob_held_aside_before_release() -> None:
+    """Real videos, 1 Nov: the bob was held aside for half the clip, and the whole-track fit
+    reached only R² 0.81. The held part must not enter the fit."""
+    t, x, _y = make_pendulum(theta0_deg=10)
+    fps = 1 / (t[1] - t[0])
+    hold = int(3.0 * fps)  # three seconds held at the release position, a little jitter
+    rng = np.random.default_rng(3)
+    t_all = np.concatenate([t[0] - (np.arange(hold, 0, -1) / fps), t])
+    x_all = np.concatenate([x[0] + rng.normal(0, 0.4, hold), x])
+    r = analyze_pendulum(t_all, x_all, length_m=L, sigma_length_m=0.0, radius_px=R_PX,
+                         bootstrap_n=50)  # fmt: skip
+    assert r.start >= hold  # the fit starts after the release
+    assert r.fit.r2 > 0.999
+    assert r.g == pytest.approx(9.78, rel=0.003)
+
+
+def test_swing_start_keeps_a_clip_that_starts_mid_swing() -> None:
+    t, x, _y = make_pendulum(theta0_deg=10)
+    period_points = int(exact_period(L, 10) / (t[1] - t[0]))
+    assert swing_start(x) <= period_points // 2 + 1  # at most half a period is skipped
 
 
 def test_amplitude_factor_series() -> None:

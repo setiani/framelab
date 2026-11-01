@@ -136,7 +136,12 @@ def build(runs_dir: Path, out: Path, samples: list[tuple[str, str]],
                 "blurb": text.get("blurb", {"en": "", "id": ""}),
             })  # fmt: skip
             if key == "trap" and state.verdict != "NEEDS_RERECORD":
-                print(f"warning: trap sample {run_id} has verdict {state.verdict}")
+                # The card says the auditor asked for a new recording; a passing run would
+                # make that card untrue.
+                raise CacheError(
+                    f"trap sample {run_id} has verdict {state.verdict}; the trap card needs a "
+                    "run that ended as NEEDS_RERECORD"
+                )
         for series_id in series_ids:
             try:
                 series = store.load_series(series_id)

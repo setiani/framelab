@@ -29,6 +29,13 @@ def _no_baseten_key(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPa
         monkeypatch.setattr(Settings, "baseten_api_key", property(lambda self: None))
 
 
+@pytest.fixture(autouse=True)
+def _no_demo_samples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never see the repository's real ``demo_runs/`` (cached samples and series): the
+    default ``demo_dir`` points at an empty folder. Tests of demo mode pass their own."""
+    monkeypatch.setenv("FRAMELAB_DEMO_DIR", str(tmp_path / "no_demo_runs"))
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(runs_dir=tmp_path / "runs")

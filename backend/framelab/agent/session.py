@@ -168,15 +168,18 @@ class AnalysisSession:
     # --- tools: track and scale ---------------------------------------------------------------
     def choose_track(self, track_id: str) -> Track:
         """Re-clean the track for another candidate object (writes a new ``trk_``)."""
+        # The summary lists bare object ids ("0", "1"); the track ids are "<slug>_<id>".
+        # Accept either, so the Analyst can use what it was shown.
+        wanted = str(track_id).strip()
         object_id = next(
-            (o.object_id for o in self.observations if f"{self._slug()}_{o.object_id}" == track_id),
+            (o.object_id for o in self.observations
+             if wanted in (str(o.object_id), f"{self._slug()}_{o.object_id}")),
             None,
-        )
+        )  # fmt: skip
         if object_id is None:
-            raise ToolError(
-                f"unknown track_id {track_id!r}; candidates are "
-                f"{self.track_summary()['candidates']}"
-            )
+            ids = sorted({str(o.object_id) for o in self.observations
+                          if o.concept == self.track.concept})  # fmt: skip
+            raise ToolError(f"unknown track_id {track_id!r}; candidates are {ids}")
         obs = [o for o in self.observations if o.object_id == object_id]
         self._adopt_track(obs, object_id, reason="chosen by the Analyst")
         return self.track
