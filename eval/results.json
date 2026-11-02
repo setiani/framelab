@@ -1,0 +1,439 @@
+{
+  "generated_at": "2026-11-02T07:56:50+00:00",
+  "g_ref": 9.781,
+  "groups": {
+    "pendulum": {
+      "videos": 6,
+      "passed": 6,
+      "refused": 0,
+      "mean_abs_error_pct": 1.2940359486170776,
+      "max_abs_error_pct": 1.7999011852335571,
+      "ref_in_ci95": 6
+    },
+    "free_fall": {
+      "videos": 3,
+      "passed": 1,
+      "refused": 2,
+      "mean_abs_error_pct": 12.083802417839863,
+      "max_abs_error_pct": 12.083802417839863,
+      "ref_in_ci95": 0
+    }
+  },
+  "traps": {
+    "total": 2,
+    "caught": 1
+  },
+  "entries": [
+    {
+      "file": "bandul-30cm-3.mp4",
+      "experiment": "pendulum",
+      "purpose": "measure",
+      "string_length_m": 0.3,
+      "expected_verdict": "PASS",
+      "note": null,
+      "run_id": "r_20261101_042427_ca6b6d",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 9.62249785855576,
+      "sigma_g": 0.16551791484108958,
+      "formatted": "9.62 ± 0.17 m/s²",
+      "error_pct": -1.6205105965058766,
+      "ref_in_ci95": true,
+      "failed_gates": [],
+      "warned_gates": [
+        "G2",
+        "G3"
+      ],
+      "diagnoses": {
+        "G2": "single_scale",
+        "G3": "smooth_model_mismatch"
+      },
+      "cost_usd": 0.229575,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": [
+        {
+          "run_id": "r_20261101_041216_a68242",
+          "verdict": "PASS_WITH_WARNINGS",
+          "g": 9.625309745699278
+        }
+      ]
+    },
+    {
+      "file": "bandul-40cm-2.mp4",
+      "experiment": "pendulum",
+      "purpose": "measure",
+      "string_length_m": 0.4,
+      "expected_verdict": "PASS",
+      "note": null,
+      "run_id": "r_20261101_044831_cf0467",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 9.645490776011046,
+      "sigma_g": 0.122474680432361,
+      "formatted": "9.65 ± 0.12 m/s²",
+      "error_pct": -1.3854332275734011,
+      "ref_in_ci95": true,
+      "failed_gates": [],
+      "warned_gates": [
+        "G2",
+        "G3"
+      ],
+      "diagnoses": {
+        "G2": "single_scale",
+        "G3": "smooth_model_mismatch"
+      },
+      "cost_usd": 0.218489,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": []
+    },
+    {
+      "file": "bandul-50cm-2.mp4",
+      "experiment": "pendulum",
+      "purpose": "measure",
+      "string_length_m": 0.5,
+      "expected_verdict": "PASS",
+      "note": null,
+      "run_id": "r_20261101_052657_69cd33",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 9.910789379572703,
+      "sigma_g": 0.10117118382263887,
+      "formatted": "9.91 ± 0.10 m/s²",
+      "error_pct": 1.3269540903047006,
+      "ref_in_ci95": true,
+      "failed_gates": [],
+      "warned_gates": [
+        "G1",
+        "G2",
+        "G3"
+      ],
+      "diagnoses": {
+        "G1": "low_coverage_blur",
+        "G2": "single_scale",
+        "G3": "smooth_model_mismatch"
+      },
+      "cost_usd": 0.553114,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026",
+        "muse-spark-1.3"
+      ],
+      "earlier_runs": [
+        {
+          "run_id": "r_20261101_044511_6ec88c",
+          "verdict": "NEEDS_RERECORD",
+          "g": null
+        }
+      ]
+    },
+    {
+      "file": "bandul-50cm.mp4",
+      "experiment": "pendulum",
+      "purpose": "measure",
+      "string_length_m": 0.5,
+      "expected_verdict": "PASS",
+      "note": "last analysed before the 1 Nov fix that stops the string being used as a ruler; not re-run",
+      "run_id": "r_20261102_071246_f98988",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 9.723895744232694,
+      "sigma_g": 0.09848344060261377,
+      "formatted": "9.72 ± 0.10 m/s²",
+      "error_pct": -0.5838283996248513,
+      "ref_in_ci95": true,
+      "failed_gates": [],
+      "warned_gates": [
+        "G2",
+        "G3"
+      ],
+      "diagnoses": {
+        "G2": "single_scale",
+        "G3": "smooth_model_mismatch"
+      },
+      "cost_usd": 0.474593,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": [
+        {
+          "run_id": "r_20261101_030309_6f51e7",
+          "verdict": "NEEDS_RERECORD",
+          "g": null
+        },
+        {
+          "run_id": "r_20261101_045149_ffc130",
+          "verdict": "NEEDS_RERECORD",
+          "g": null
+        }
+      ]
+    },
+    {
+      "file": "bandul-30cm.mp4",
+      "experiment": "pendulum",
+      "purpose": "measure",
+      "string_length_m": 0.3,
+      "expected_verdict": "PASS",
+      "note": "last analysed before the 1 Nov change to the coverage rule (75-90 % now warns); not re-run",
+      "run_id": "r_20261102_071826_f3cfec",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 9.88346460110452,
+      "sigma_g": 0.19392812415908653,
+      "formatted": "9.88 ± 0.19 m/s²",
+      "error_pct": 1.0475881924600785,
+      "ref_in_ci95": true,
+      "failed_gates": [],
+      "warned_gates": [
+        "G1",
+        "G2",
+        "G3"
+      ],
+      "diagnoses": {
+        "G1": "low_coverage_blur",
+        "G2": "single_scale",
+        "G3": "smooth_model_mismatch"
+      },
+      "cost_usd": 0.193589,
+      "fps": 50.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": [
+        {
+          "run_id": "r_20261101_031128_ec45d0",
+          "verdict": "NEEDS_RERECORD",
+          "g": null
+        },
+        {
+          "run_id": "r_20261101_042759_021ba0",
+          "verdict": "NEEDS_RERECORD",
+          "g": null
+        }
+      ]
+    },
+    {
+      "file": "bandul-30m-2.mp4",
+      "experiment": "pendulum",
+      "purpose": "measure",
+      "string_length_m": 0.3,
+      "expected_verdict": "PASS",
+      "note": "last analysed before the 1 Nov pendulum fixes (held bob, G3 Durbin-Watson); not re-run",
+      "run_id": "r_20261102_072144_bfd9b3",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 9.604951665072306,
+      "sigma_g": 0.1674315938850082,
+      "formatted": "9.60 ± 0.17 m/s²",
+      "error_pct": -1.7999011852335571,
+      "ref_in_ci95": true,
+      "failed_gates": [],
+      "warned_gates": [
+        "G2",
+        "G3"
+      ],
+      "diagnoses": {
+        "G2": "single_scale",
+        "G3": "smooth_model_mismatch"
+      },
+      "cost_usd": 0.280685,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": [
+        {
+          "run_id": "r_20261101_033809_07a7bf",
+          "verdict": "NEEDS_RERECORD",
+          "g": null
+        }
+      ]
+    },
+    {
+      "file": "video-1.mp4",
+      "experiment": "free_fall",
+      "purpose": "measure",
+      "drop_height_m": 1.2,
+      "expected_verdict": "PASS",
+      "note": "30 fps class phone video, no ruler of known length; scale from the spoken ball diameter only",
+      "run_id": "r_20261101_025003_c4154e",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 8.599083285511083,
+      "sigma_g": 0.24500396572879857,
+      "formatted": "8.60 ± 0.25 m/s²",
+      "error_pct": -12.083802417839863,
+      "ref_in_ci95": false,
+      "failed_gates": [],
+      "warned_gates": [
+        "G2",
+        "G4"
+      ],
+      "diagnoses": {
+        "G2": "single_scale",
+        "G4": "out_of_range"
+      },
+      "cost_usd": 0.27167,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": []
+    },
+    {
+      "file": "video-1-30cm.mp4",
+      "experiment": "free_fall",
+      "purpose": "measure",
+      "expected_verdict": "PASS",
+      "note": "30 cm ruler on the wall",
+      "run_id": "r_20261101_110410_854a0c",
+      "verdict": "NEEDS_RERECORD",
+      "g": null,
+      "sigma_g": null,
+      "formatted": null,
+      "error_pct": null,
+      "ref_in_ci95": null,
+      "failed_gates": [
+        "G1",
+        "G2"
+      ],
+      "warned_gates": [],
+      "diagnoses": {
+        "G1": "low_coverage_blur",
+        "G2": "ruler_offplane"
+      },
+      "cost_usd": 0.096823,
+      "fps": 55.0,
+      "designer_models": [],
+      "earlier_runs": []
+    },
+    {
+      "file": "video-1-30cm-slowmotion.mp4",
+      "experiment": "free_fall",
+      "purpose": "measure",
+      "expected_verdict": "PASS",
+      "note": "30 cm ruler on the wall; the spoken values were not transcribed",
+      "run_id": "r_20261101_104620_351689",
+      "verdict": "NEEDS_RERECORD",
+      "g": null,
+      "sigma_g": null,
+      "formatted": null,
+      "error_pct": null,
+      "ref_in_ci95": null,
+      "failed_gates": [
+        "G1"
+      ],
+      "warned_gates": [
+        "G2",
+        "G4"
+      ],
+      "diagnoses": {
+        "G1": "low_coverage_blur",
+        "G2": "single_scale",
+        "G4": "out_of_range"
+      },
+      "cost_usd": 0.114986,
+      "fps": 120.0,
+      "designer_models": [],
+      "earlier_runs": []
+    },
+    {
+      "file": "video-3.mp4",
+      "experiment": "free_fall",
+      "purpose": "trap",
+      "trap": "ruler_offplane",
+      "expected_verdict": "NEEDS_RERECORD",
+      "expected_failed_gates": [
+        "G2"
+      ],
+      "note": "first trap attempt: tape without a stated length",
+      "run_id": "r_20261101_031501_3839e2",
+      "verdict": "PASS_WITH_WARNINGS",
+      "g": 8.328206031217482,
+      "sigma_g": 0.32649566516687367,
+      "formatted": "8.3 ± 0.3 m/s²",
+      "error_pct": -14.85322532238543,
+      "ref_in_ci95": false,
+      "failed_gates": [],
+      "warned_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "diagnoses": {
+        "G2": "single_scale",
+        "G3": "systematic_residuals",
+        "G4": "out_of_range"
+      },
+      "cost_usd": 0.270508,
+      "fps": 55.0,
+      "designer_models": [
+        "meta-models/muse-spark-open-1026"
+      ],
+      "earlier_runs": [],
+      "trap_caught": false
+    },
+    {
+      "file": "video-3-30cm.mp4",
+      "experiment": "free_fall",
+      "purpose": "trap",
+      "trap": "ruler_offplane",
+      "expected_verdict": "NEEDS_RERECORD",
+      "expected_failed_gates": [
+        "G2"
+      ],
+      "note": "30 cm ruler on a box about 50 cm in front of the wall",
+      "run_id": "r_20261101_111241_8b0713",
+      "verdict": "NEEDS_RERECORD",
+      "g": null,
+      "sigma_g": null,
+      "formatted": null,
+      "error_pct": null,
+      "ref_in_ci95": null,
+      "failed_gates": [
+        "G1",
+        "G2",
+        "G3"
+      ],
+      "warned_gates": [
+        "G4"
+      ],
+      "diagnoses": {
+        "G1": "low_coverage_blur",
+        "G2": "ruler_offplane",
+        "G3": "wrong_window",
+        "G4": "out_of_range"
+      },
+      "cost_usd": 0.102968,
+      "fps": 60.0,
+      "designer_models": [],
+      "earlier_runs": [],
+      "trap_caught": true
+    }
+  ],
+  "series": [
+    {
+      "series_id": "s_20261101_053115_7397ab",
+      "status": "done",
+      "runs": [
+        "r_20261101_052657_69cd33",
+        "r_20261101_044831_cf0467",
+        "r_20261101_042427_ca6b6d"
+      ],
+      "lengths_m": [
+        0.3,
+        0.4,
+        0.5
+      ],
+      "n": 0.4671835254505637,
+      "sigma_n": 0.01908621612194146,
+      "g": 10.38048933000072,
+      "sigma_g": 0.4116309545287101,
+      "ci_g": [
+        9.573692659124449,
+        11.187286000876993
+      ],
+      "sqrt_law_supported": true
+    }
+  ],
+  "total_cost_usd": 2.8070000000000004
+}

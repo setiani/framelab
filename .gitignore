@@ -29,5 +29,9 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Docs
-docs/
+# Docs: the implementation plan stays private; only these public files are tracked
+docs/*
+!docs/recording-guide.md
+!docs/demo-script.md
+!docs/architecture.svg
+!docs/media/

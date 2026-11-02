@@ -281,3 +281,17 @@ def test_overlay_on_the_real_pipeline_frames(tmp_path, monkeypatch) -> None:
     card = round(1.5 * 60)  # the end card holds the last frame for 1.5 s
     assert abs(frames - (video_frames + card)) <= 2
     assert overlay.stat().st_size > 10_000
+
+
+def test_end_card_text_fits_a_portrait_frame() -> None:
+    """Real 540×960 overlay, 1 Nov: the result line was cut off at both sides."""
+    import numpy as np
+
+    from framelab.pipeline import overlay
+
+    headline = "g = 9.65 ± 0.12 m/s²"
+    font = overlay._fit_font(headline, 2 * max(18, 960 // 14), 0.92 * 540)
+    assert font.getlength(headline) <= 0.92 * 540
+    card = overlay._card(np.zeros((960, 540, 3), np.uint8), headline, "PASS WITH WARNINGS",
+                         overlay.built_with("en", None, None))  # fmt: skip
+    assert card.shape == (960, 540, 3)

@@ -153,10 +153,19 @@ def _card(frame: np.ndarray, headline: str, verdict: str, credit: str) -> np.nda
              (credit, int(size * 0.7), (200, 200, 200))]  # fmt: skip
     y = int(h * 0.35)
     for text, s, color in lines:
-        f = _font(s)
+        f = _fit_font(text, s, 0.92 * w)  # portrait videos are narrow (real run, 1 Nov)
         draw.text(((w - f.getlength(text)) / 2, y), text, font=f, fill=color)
-        y += int(s * 1.8)
+        y += int(f.size * 1.8)
     return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+
+def _fit_font(text: str, size: int, max_width: float) -> ImageFont.FreeTypeFont:
+    """The font at ``size``, shrunk until ``text`` fits ``max_width`` (never below 10 px)."""
+    font = _font(size)
+    while size > 10 and font.getlength(text) > max_width:
+        size = max(10, int(size * 0.9))
+        font = _font(size)
+    return font
 
 
 def render(run_dir: Path, out_path: Path) -> Path:

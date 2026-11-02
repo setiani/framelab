@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="600" viewBox="0 0 1040 600" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>FrameLab architecture</title>
+  <desc>A phone video goes through ingest, Muse Voice Transcribe and the Muse Spark planner, SAM 3.1 tracking, deterministic measurement, the Muse Spark analyst with tools and a claim ledger, an independent auditor, the designer on Muse Spark Open, and the report.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5b6b72"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #c5d0d3; stroke-width: 1.5; }
+      .model { fill: #e3f7fb; stroke: #00b8d9; stroke-width: 1.5; }
+      .code { fill: #f2f4f3; stroke: #9aa8ad; stroke-width: 1.5; }
+      .audit { fill: #fbeee9; stroke: #c4431c; stroke-width: 1.5; }
+      .t { font-size: 15px; font-weight: 700; fill: #142027; }
+      .s { font-size: 12.5px; fill: #3d4c53; }
+      .m { font-size: 12px; font-weight: 700; fill: #00718c; }
+      .ma { font-size: 12px; font-weight: 700; fill: #a3351a; }
+      .l { stroke: #5b6b72; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+      .note { font-size: 12px; fill: #5b6b72; }
+    </style>
+  </defs>
+  <rect width="1040" height="600" fill="#f7f9f8"/>
+  <text x="32" y="40" font-size="20" font-weight="700" fill="#142027">FrameLab: the LLM decides, code computes</text>
+  <text x="32" y="62" class="note">Cyan: Meta models. Grey: deterministic Python. Every number in the report comes from code and is linked to evidence in the Claim Ledger.</text>
+
+  <!-- row 1 -->
+  <rect x="32" y="92" width="170" height="92" rx="10" class="box"/>
+  <text x="48" y="120" class="t">Phone video</text>
+  <text x="48" y="142" class="s">experiment + spoken</text>
+  <text x="48" y="160" class="s">length, height, guess</text>
+
+  <rect x="240" y="92" width="170" height="92" rx="10" class="code"/>
+  <text x="256" y="120" class="t">Ingest</text>
+  <text x="256" y="142" class="s">ffmpeg: constant fps,</text>
+  <text x="256" y="160" class="s">audio, keyframes</text>
+
+  <rect x="448" y="92" width="250" height="92" rx="10" class="model"/>
+  <text x="464" y="118" class="t">Listen and plan</text>
+  <text x="464" y="138" class="m">Muse Voice Transcribe</text>
+  <text x="464" y="156" class="m">Muse Spark 1.3 (Planner)</text>
+  <text x="464" y="174" class="s">what to track, which seconds</text>
+
+  <rect x="736" y="92" width="272" height="92" rx="10" class="model"/>
+  <text x="752" y="118" class="t">Track</text>
+  <text x="752" y="138" class="m">SAM 3.1 (video)</text>
+  <text x="752" y="156" class="s">a mask of the object in every</text>
+  <text x="752" y="174" class="s">frame, plus the ruler</text>
+
+  <path d="M202 138H236" class="l"/>
+  <path d="M410 138H444" class="l"/>
+  <path d="M698 138H732" class="l"/>
+
+  <!-- row 2 -->
+  <rect x="736" y="232" width="272" height="100" rx="10" class="code"/>
+  <text x="752" y="258" class="t">Measure</text>
+  <text x="752" y="280" class="s">masks → sub-pixel positions,</text>
+  <text x="752" y="298" class="s">scale from ruler, ball size or</text>
+  <text x="752" y="316" class="s">spoken length; pendulum pivot</text>
+  <path d="M872 184V228" class="l"/>
+
+  <rect x="384" y="232" width="314" height="100" rx="10" class="model"/>
+  <text x="400" y="258" class="t">Analyse (agent with tools)</text>
+  <text x="400" y="278" class="m">Muse Spark 1.3 (Analyst)</text>
+  <text x="400" y="298" class="s">fit_model · bootstrap_ci · derive · run_gates</text>
+  <text x="400" y="316" class="s">chooses; the tools compute</text>
+  <path d="M736 282H702" class="l"/>
+
+  <rect x="32" y="232" width="314" height="100" rx="10" class="code"/>
+  <text x="48" y="258" class="t">Claim Ledger and gates</text>
+  <text x="48" y="280" class="s">evidence (fits, intervals, scales) and claims</text>
+  <text x="48" y="298" class="s">G1 track · G2 scale · G3 fit · G4 plausible ·</text>
+  <text x="48" y="316" class="s">G5 no bare numbers in the narrative</text>
+  <path d="M384 270H350" class="l"/>
+  <path d="M350 296H380" class="l"/>
+
+  <!-- row 3 -->
+  <rect x="32" y="380" width="314" height="100" rx="10" class="audit"/>
+  <text x="48" y="406" class="t">Independent audit</text>
+  <text x="48" y="426" class="ma">Muse Spark 1.3 (Auditor, separate context)</text>
+  <text x="48" y="446" class="s">PASS · PASS WITH WARNINGS · REJECT (revise)</text>
+  <text x="48" y="464" class="s">· NEEDS RE-RECORD with tips</text>
+  <path d="M189 332V376" class="l"/>
+  <path d="M346 396Q410 396 440 336" class="l" stroke-dasharray="5 4"/>
+  <text x="204" y="362" class="note">REJECT → revise ↗</text>
+
+  <rect x="384" y="380" width="314" height="100" rx="10" class="model"/>
+  <text x="400" y="406" class="t">Design the next experiment</text>
+  <text x="400" y="426" class="m">Muse Spark Open (open weights, Baseten)</text>
+  <text x="400" y="446" class="s">change one variable; predictions</text>
+  <text x="400" y="464" class="s">computed by code</text>
+  <path d="M346 446H380" class="l"/>
+
+  <rect x="736" y="380" width="272" height="100" rx="10" class="box"/>
+  <text x="752" y="406" class="t">Report</text>
+  <text x="752" y="428" class="s">annotated video, charts, data</text>
+  <text x="752" y="446" class="s">lab report PDF (ID / EN),</text>
+  <text x="752" y="464" class="s">live agent trace, claim ledger</text>
+  <path d="M698 430H732" class="l"/>
+
+  <text x="32" y="528" class="note">Series: several pendulum runs at different lengths → T₀² against L → g from the slope and the √L law.</text>
+  <text x="32" y="550" class="note">Built during the Meta Global AI Developer Hackathon 2026. Built with Meta SAM 3.1, Muse Spark, Muse Voice and Muse Spark Open.</text>
+</svg>
