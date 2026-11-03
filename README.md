@@ -6,7 +6,7 @@ independent auditor checks the result, and FrameLab proposes the next experiment
 
 <p align="center"><img src="docs/media/framelab-pendulum.gif" alt="A nut on a string swings against a wall; FrameLab marks it in every frame and shows g = 9.65 ± 0.12 m/s²" width="300"></p>
 
-- **Demo video (3 min):** _link added at submission_
+- **Demo video (3 min):** https://youtu.be/ym59r6SENbo
 - **Live app:** _link added at submission_ (try a recorded sample; no upload needed)
 - **Built during** the Meta Global AI Developer Hackathon 2026: see [`HACKATHON.md`](HACKATHON.md)
 
